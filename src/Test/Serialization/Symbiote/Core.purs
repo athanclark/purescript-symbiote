@@ -5,8 +5,8 @@ import Data.Maybe (Maybe)
 import Data.Map (Map)
 import Data.Map (empty) as Map
 import Data.Exists (Exists, runExists)
-import Data.Array (unsafeIndex) as Array
 import Data.Int (toNumber) as Int
+import Data.Generic.Rep (class Generic)
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Control.Monad.State (StateT, execStateT)
 import Effect.Ref (Ref)
@@ -32,6 +32,10 @@ class SymbioteOperation a op <= Symbiote a op s | a -> op, op -> a where
 
 
 newtype Topic = Topic String
+derive instance genericTopic :: Generic Topic _
+derive newtype instance eqTopic :: Eq Topic
+derive newtype instance ordTopic :: Ord Topic
+derive newtype instance showTopic :: Show Topic
 
 data SymbioteProtocol a s
   = MeGenerated
