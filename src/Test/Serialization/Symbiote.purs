@@ -1,24 +1,29 @@
 module Test.Serialization.Symbiote where
 
 import Test.Serialization.Symbiote.Core
-  ( Topic (..), newGeneration, class Symbiote, encodeOp, decodeOp, perform, SymbioteT
+  ( Topic (..), newGeneration, class Symbiote, encodeOp, decodeOp, perform, SymbioteT, runSymbioteT
   , SymbioteState (..), encode, decode, getProgress, generateSymbiote, GenerateSymbiote (..))
 
 import Prelude
 import Data.Exists (Exists, mkExists, runExists)
 import Data.Map (Map)
-import Data.Map (insert) as Map
+import Data.Map (insert, keys, lookup) as Map
+import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
 import Control.Monad.State (modify)
+import Control.Monad.Trans.Control (class MonadBaseControl, liftBaseWith)
 import Effect (Effect)
 import Effect.Class (class MonadEffect, liftEffect)
-import Effect.Aff.Class (class MonadAff)
+import Effect.Aff (Aff, forkAff, joinFiber)
+import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Ref (Ref)
 import Effect.Ref (new, read, write) as Ref
 import Effect.Console (log, error)
+import Queue.One (Queue, READ, WRITE)
+import Queue.One (new, put, draw) as Queue
 import Type.Proxy (Proxy (..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Partial.Unsafe (unsafePartial)
@@ -168,6 +173,105 @@ defaultProgress (Topic t) p = log $ "Topic " <> t <> ": " <> {- printf "%.2f" -}
 -- | Do nothing
 nullProgress :: Topic -> Number -> Effect Unit
 nullProgress _ _ = pure unit
+
+
+firstPeer :: forall m s
+           . MonadEffect m
+          => MonadAff m
+          => Show s
+          => (First s -> m Unit) -- ^ Encode and send first messages
+          -> m (Second s) -- ^ Receive and decode second messages
+          -> (Topic -> m Unit) -- ^ Report when Successful
+          -> (Failure Second s -> m Unit) -- ^ Report when Failed
+          -> (Topic -> Number -> m Unit) -- ^ Report on Progress
+          -> SymbioteT s m Unit
+          -> m Unit
+firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
+  state <- runSymbioteT x true
+  let topics = (\e -> runExists (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
+  encodeAndSend (AvailableTopics topics)
+  shouldBeStart <- receiveAndDecode
+  case shouldBeStart of
+    BadTopics badTopics -> onFailure $ BadTopicsFailure {first: topics, second: badTopics}
+    Start -> do
+      topicsToProcess <- liftEffect (Ref.new (Map.keys topics))
+      let processAllTopics = do
+            topics' <- liftEffect (Ref.read topicsToProcess)
+            case Set.findMax topics' of
+              Nothing -> pure unit -- done
+              Just topic -> do
+                let newTopics = Set.delete topic topics'
+                liftEffect (Ref.write newTopics topicsToProcess)
+                case Map.lookup topic state of
+                  Nothing -> onFailure $ TopicNonexistent topic
+                  Just symbioteState -> do
+                    hasSentFinishedVar <- liftEffect $ Ref.new HasntSentFinished
+                    hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
+                    generating
+                      encodeAndSend receiveAndDecode
+                      (\topic generating -> FirstGenerating {topic,generating})
+                      (\topic operating -> FirstOperating {topic,operating})
+                      getSecondGenerating getSecondOperating
+                      hasSentFinishedVar hasReceivedFinishedVar
+                      processAllTopics
+                      onSuccess
+                      onFailure
+                      onProgress
+                      topic symbioteState
+      processAllTopics
+    _ -> onFailure $ OutOfSyncSecond shouldBeStart
+
+
+secondPeer :: forall s m
+            . MonadEffect m
+           => MonadAff m
+           => Show s
+           => (Second s -> m Unit) -- ^ Encode and send second messages
+           -> m (First s) -- ^ Receive and decode first messages
+           -> (Topic -> m Unit) -- ^ Report when Successful
+           -> (Failure First s -> m Unit) -- ^ Report when Failed
+           -> (Topic -> Number -> m Unit) -- ^ Report on Progress
+           -> SymbioteT s m Unit
+           -> m Unit
+secondPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
+  state <- runSymbioteT x false
+  shouldBeAvailableTopics <- receiveAndDecode
+  case shouldBeAvailableTopics of
+    AvailableTopics topics -> do
+      let myTopics = (\e -> runExists (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
+      if myTopics /= topics
+        then do
+          encodeAndSend (BadTopics myTopics)
+          onFailure $ BadTopicsFailure {first: topics, second: myTopics}
+        else do
+          encodeAndSend Start
+          topicsToProcess <- liftEffect (Ref.new (Map.keys topics))
+          let processAllTopics = do
+                topics' <- liftEffect (Ref.read topicsToProcess)
+                case Set.findMax topics' of
+                  Nothing -> pure unit -- done
+                  Just topic -> do
+                    let newTopics = Set.delete topic topics'
+                    liftEffect (Ref.write newTopics topicsToProcess)
+                    case Map.lookup topic state of
+                      Nothing -> onFailure $ TopicNonexistent topic
+                      Just symbioteState -> do
+                        hasSentFinishedVar <- liftEffect $ Ref.new HasntSentFinished
+                        hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
+                        operating
+                          encodeAndSend receiveAndDecode
+                          (\topic generating -> SecondGenerating {topic,generating})
+                          (\topic operating -> SecondOperating {topic,operating})
+                          getFirstGenerating getFirstOperating
+                          hasSentFinishedVar hasReceivedFinishedVar
+                          processAllTopics
+                          onSuccess
+                          onFailure
+                          onProgress
+                          topic symbioteState
+          processAllTopics
+    _ -> onFailure $ OutOfSyncFirst shouldBeAvailableTopics
+
 
 
 data HasSentFinished
@@ -381,3 +485,34 @@ operating
                 onFailure
                 onProgress
                 topic symbioteState
+
+
+-- | Prints to stdout and uses a local channel for a sanity-check - doesn't serialize.
+simpleTest :: forall s s' m stM
+            . MonadBaseControl Aff m stM
+           => MonadAff m
+           => MonadEffect m
+           => Show s
+           => Generic s s'
+           => SymbioteT s m Unit -> m Unit
+simpleTest suite = do
+  firstChan <- liftEffect Queue.new
+  secondChan <- liftEffect Queue.new
+
+  t <- liftBaseWith $ \runInBase -> forkAff $
+    void $ runInBase $ firstPeer
+      (encodeAndSendChan firstChan)
+      (receiveAndDecodeChan secondChan)
+      (const (pure unit)) (liftEffect <<< defaultFailure) (\a b -> liftEffect $ nullProgress a b)
+      suite
+  secondPeer
+    (encodeAndSendChan secondChan)
+    (receiveAndDecodeChan firstChan)
+    (const (pure unit)) (liftEffect <<< defaultFailure) (\a b -> liftEffect $ nullProgress a b)
+    suite
+  liftAff (joinFiber t)
+  where
+    encodeAndSendChan :: forall a. Queue (read :: READ, write :: WRITE) a -> a -> m Unit
+    encodeAndSendChan chan x = liftEffect (Queue.put chan x)
+    receiveAndDecodeChan :: forall a. Queue (read :: READ, write :: WRITE) a -> m a
+    receiveAndDecodeChan chan = liftAff (Queue.draw chan)
