@@ -9,7 +9,7 @@ import Test.Serialization.Symbiote.Core
   ( Topic (..), newGeneration, class Symbiote, encodeOp, decodeOp, perform, SymbioteT, runSymbioteT
   , SymbioteState (..), encode, decode, getProgress, generateSymbiote, GenerateSymbiote (..))
 import Test.Serialization.Symbiote.Core
-  ( Topic, SymbioteT, class SymbioteOperation, perform, class Symbiote, encode, decode, encodeOp, decodeOp
+  ( Topic (..), SymbioteT, class SymbioteOperation, perform, class Symbiote, encode, decode, encodeOp, decodeOp
   ) as Exposed
 
 import Prelude

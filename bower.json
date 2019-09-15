@@ -23,6 +23,8 @@
     "purescript-arraybuffer-class": "git://github.com/athanclark/purescript-arraybuffer-class.git#d62c6064f1b867148d08d9e315311e702c0093ed"
   },
   "devDependencies": {
-    "purescript-psci-support": "^4.0.0"
+    "purescript-psci-support": "^4.0.0",
+    "purescript-spec": "^4.0.1",
+    "purescript-quickcheck": "^6.1.0"
   }
 }
