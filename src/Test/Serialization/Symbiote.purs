@@ -1,8 +1,16 @@
-module Test.Serialization.Symbiote where
+module Test.Serialization.Symbiote
+  ( module Exposed
+  , EitherOp (..), register
+  , firstPeer, secondPeer, First (..), Second (..), Generating (..), Operating (..), Failure (..)
+  , defaultSuccess, defaultFailure, defaultProgress, nullProgress, simpleTest
+  ) where
 
 import Test.Serialization.Symbiote.Core
   ( Topic (..), newGeneration, class Symbiote, encodeOp, decodeOp, perform, SymbioteT, runSymbioteT
   , SymbioteState (..), encode, decode, getProgress, generateSymbiote, GenerateSymbiote (..))
+import Test.Serialization.Symbiote.Core
+  ( Topic, SymbioteT, class SymbioteOperation, perform, class Symbiote, encode, decode, encodeOp, decodeOp
+  ) as Exposed
 
 import Prelude
 import Data.Exists (Exists, mkExists, runExists)
@@ -10,6 +18,7 @@ import Data.Map (Map)
 import Data.Map (insert, keys, lookup) as Map
 import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
+import Data.Either (Either (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
@@ -27,6 +36,21 @@ import Queue.One (new, put, draw) as Queue
 import Type.Proxy (Proxy (..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Partial.Unsafe (unsafePartial)
+
+
+-- | The most trivial serialization medium for any @a@.
+newtype EitherOp a op = EitherOp (Either a op)
+derive instance genericEitherOp :: (Generic a a', Generic op op') => Generic (EitherOp a op) _
+derive newtype instance eqEitherOp :: (Eq a, Eq op) => Eq (EitherOp a op)
+derive newtype instance showEitherOp :: (Show a, Show op) => Show (EitherOp a op)
+
+instance symbioteEitherOp :: Exposed.SymbioteOperation a op => Symbiote a op (EitherOp a op) where
+  encode = EitherOp <<< Left
+  decode (EitherOp (Left x)) = Just x
+  decode (EitherOp (Right _)) = Nothing
+  encodeOp = EitherOp <<< Right
+  decodeOp (EitherOp (Left _)) = Nothing
+  decodeOp (EitherOp (Right x)) = Just x
 
 
 register :: forall a op s m
