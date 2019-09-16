@@ -8,28 +8,46 @@ import Prelude
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Eq (genericEq)
-import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson)
+import Data.Argonaut
+  ( class EncodeJson, class DecodeJson, encodeJson, decodeJson, Json
+  )
+import Data.Argonaut
+  (fromBoolean, jsonNull, fromNumber, fromString, fromArray, fromObject, stringify, jsonParser) as Json
 import Data.NonEmpty (NonEmpty (..))
+import Data.Either (Either (..))
+import Data.Maybe (Maybe (..))
+import Data.Tuple (Tuple (..))
+import Data.Array (reverse, init, tail) as Array
+import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
+import Data.ArrayBuffer.Class (encodeArrayBuffer, decodeArrayBuffer)
+import Data.ArrayBuffer.Typed (whole, buffer)
+import Data.ArrayBuffer.Typed.Unsafe (AV (..))
+import Data.UInt (UInt)
 import Control.Alternative ((<|>))
+import Foreign.Object (fromFoldable) as Object
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
-import Effect.Console (log)
+import Effect.Console (error, log)
+import Effect.Unsafe (unsafePerformEffect)
 import Test.Spec (describe, pending, it)
-import Test.Spec.Runner (runSpec)
+import Test.Spec.Runner (runSpec', defaultConfig)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.QuickCheck (class Arbitrary, arbitrary)
-import Test.QuickCheck.Gen (oneOf)
+import Test.QuickCheck.Gen (Gen, oneOf, elements, sized, resize, arrayOf)
 import Type.Proxy (Proxy (..))
 
 
 main :: Effect Unit
-main = launchAff_ $ runSpec [consoleReporter] do
+main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporter] do
   describe "All Tests" do
     simpleTests
+    arraybufferTests
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
       it "Int over various" (simpleTest intSuite)
+      it "Number over various" (simpleTest numberSuite)
+      it "Array over various" (simpleTest arraySuite)
       where
         unitSuite :: SymbioteT (EitherOp Unit' Unit'Operation) Aff Unit
         unitSuite = register (Topic "Unit") 100
@@ -37,6 +55,18 @@ main = launchAff_ $ runSpec [consoleReporter] do
         intSuite :: SymbioteT (EitherOp Int' Int'Operation) Aff Unit
         intSuite = register (Topic "Int") 100
           (Proxy :: Proxy {value :: Int', operation :: Int'Operation})
+        numberSuite :: SymbioteT (EitherOp Number' Number'Operation) Aff Unit
+        numberSuite = register (Topic "Number") 100
+          (Proxy :: Proxy {value :: Number', operation :: Number'Operation})
+        arraySuite :: SymbioteT (EitherOp (Array' Int') Array'Operation) Aff Unit
+        arraySuite = register (Topic "Array") 100
+          (Proxy :: Proxy {value :: Array' Int', operation :: Array'Operation})
+    arraybufferTests = describe "ArrayBuffer Tests" do
+      it "Json over id" (simpleTest jsonSuite)
+      where
+        jsonSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
+        jsonSuite = register (Topic "Json") 100
+          (Proxy :: Proxy {value :: Json', operation :: Json'Operation})
 
 
 
@@ -126,6 +156,165 @@ instance symbioteOperationInt' :: SymbioteOperation Int' Int'Operation where
   perform op (Int' x) = case op of
     AddInt y -> Int' (x + y)
     DelInt y -> Int' (x - y)
-    DivInt y -> Int' (x `div` y)
+    DivInt y -> Int' $ if y == 0 then 0 else x `div` y
     MulInt y -> Int' (x * y)
-    ModInt y -> Int' (x `mod` y)
+    ModInt y -> Int' $ if y == 0 then 0 else x `mod` y
+
+
+newtype Number' = Number' Number
+derive instance genericNumber' :: Generic Number' _
+derive newtype instance showNumber' :: Show Number'
+derive newtype instance eqNumber' :: Eq Number'
+derive newtype instance arbitraryNumber' :: Arbitrary Number'
+derive newtype instance encodeJsonNumber' :: EncodeJson Number'
+derive newtype instance decodeJsonNumber' :: DecodeJson Number'
+data Number'Operation
+  = AddNumber Number
+  | DelNumber Number
+  | DivNumber Number
+  | MulNumber Number
+  | RecipNumber
+derive instance genericNumber'Operation :: Generic Number'Operation _
+instance showNumber'Operation :: Show Number'Operation where
+  show = genericShow
+instance eqNumber'Operation :: Eq Number'Operation where
+  eq = genericEq
+instance arbitraryNumber'Operation :: Arbitrary Number'Operation where
+  arbitrary = oneOf $ NonEmpty (AddNumber <$> arbitrary)
+    [ DelNumber <$> arbitrary
+    , DivNumber <$> arbitrary
+    , MulNumber <$> arbitrary
+    , pure RecipNumber
+    ]
+instance encodeJsonNumber'Operation :: EncodeJson Number'Operation where
+  encodeJson x = case x of
+    AddNumber y -> encodeJson {add: y}
+    DelNumber y -> encodeJson {del: y}
+    DivNumber y -> encodeJson {div: y}
+    MulNumber y -> encodeJson {mul: y}
+    RecipNumber -> encodeJson "recip"
+instance decodeJsonNumber'Operation :: DecodeJson Number'Operation where
+  decodeJson x = tryAdd <|> tryDel <|> tryDiv <|> tryMul <|> tryRecip
+    where
+      tryAdd = do
+        ({add} :: {add :: Number}) <- decodeJson x
+        pure (AddNumber add)
+      tryDel = do
+        ({del} :: {del :: Number}) <- decodeJson x
+        pure (DelNumber del)
+      tryDiv = do
+        ({div} :: {div :: Number}) <- decodeJson x
+        pure (DivNumber div)
+      tryMul = do
+        ({mul} :: {mul :: Number}) <- decodeJson x
+        pure (MulNumber mul)
+      tryRecip = do
+        r <- decodeJson x
+        if r == "recip"
+          then pure RecipNumber
+          else Left "Not a Recip"
+instance symbioteOperationNumber' :: SymbioteOperation Number' Number'Operation where
+  perform op (Number' x) = case op of
+    AddNumber y -> Number' (x + y)
+    DelNumber y -> Number' (x - y)
+    DivNumber y -> Number' $ if y == 0.0 then 0.0 else x / y
+    MulNumber y -> Number' (x * y)
+    RecipNumber -> Number' $ if x == 0.0 then 0.0 else recip x
+
+
+newtype Array' a = Array' (Array a)
+derive instance genericArray' :: Generic a a' => Generic (Array' a) _
+derive newtype instance showArray' :: Show a => Show (Array' a)
+derive newtype instance eqArray' :: Eq a => Eq (Array' a)
+derive newtype instance arbitraryArray' :: Arbitrary a => Arbitrary (Array' a)
+derive newtype instance encodeJsonArray' :: EncodeJson a => EncodeJson (Array' a)
+derive newtype instance decodeJsonArray' :: DecodeJson a => DecodeJson (Array' a)
+data Array'Operation
+  = ReverseArray
+  | InitArray
+  | TailArray
+derive instance genericArray'Operation :: Generic Array'Operation _
+instance showArray'Operation :: Show Array'Operation where
+  show = genericShow
+instance eqArray'Operation :: Eq Array'Operation where
+  eq = genericEq
+instance arbitraryArray'Operation :: Arbitrary Array'Operation where
+  arbitrary = elements $ NonEmpty ReverseArray
+    [ InitArray, TailArray
+    ]
+instance encodeJsonArray'Operation :: EncodeJson Array'Operation where
+  encodeJson x = encodeJson $ case x of
+    ReverseArray -> "reverse"
+    InitArray -> "init"
+    TailArray -> "tail"
+instance decodeJsonArray'Operation :: DecodeJson Array'Operation where
+  decodeJson x = do
+    s <- decodeJson x
+    case unit of
+      _ | s == "reverse" -> pure ReverseArray
+        | s == "init" -> pure InitArray
+        | s == "tail" -> pure TailArray
+        | otherwise -> Left "Not a Array"
+instance symbioteOperationArray' :: SymbioteOperation (Array' a) Array'Operation where
+  perform op (Array' x) = case op of
+    ReverseArray -> Array' $ Array.reverse x
+    InitArray -> Array' $ case Array.init x of
+      Nothing -> []
+      Just y -> y
+    TailArray -> Array' $ case Array.tail x of
+      Nothing -> []
+      Just y -> y
+
+
+newtype Json' = Json' Json
+derive instance genericJson' :: Generic Json' _
+instance showJson' :: Show Json' where
+  show (Json' x) = Json.stringify x
+derive newtype instance eqJson' :: Eq Json'
+instance arbitraryJson' :: Arbitrary Json' where
+  arbitrary = map Json' go
+    where
+      go :: Gen Json
+      go = sized \s ->
+        if s <= 1
+          then oneOf $ NonEmpty
+                (pure Json.jsonNull)
+                [ Json.fromBoolean <$> arbitrary
+                , Json.fromNumber <$> arbitrary
+                , Json.fromString <$> arbitrary
+                ]
+          else
+            let go' = resize (s `div` 10) go
+            in  (Json.fromArray <$> (arrayOf go'))
+                  <|> (Json.fromObject <$> (Object.fromFoldable <$> arrayOf (Tuple <$> arbitrary <*> go')))
+data Json'Operation = IdJson'
+derive instance genericJson'Operation :: Generic Json'Operation _
+instance showJson'Operation :: Show Json'Operation where
+  show = genericShow
+instance eqJson'Operation :: Eq Json'Operation where
+  eq = genericEq
+instance arbitraryJson'Operation :: Arbitrary Json'Operation where
+  arbitrary = pure IdJson'
+instance symbioteOperationJson' :: SymbioteOperation Json' Json'Operation where
+  perform IdJson' x = x
+instance symbioteJson' :: Symbiote Json' Json'Operation (AV Uint8 UInt) where
+  encode (Json' x) = unsafePerformEffect do
+    b <- encodeArrayBuffer (Json.stringify x)
+    AV <$> whole b
+  decode (AV t) = unsafePerformEffect do
+    ms <- decodeArrayBuffer (buffer t)
+    case Json.jsonParser <$> ms of
+      Nothing -> Nothing <$ error "No buffer"
+      Just me -> case me of
+        Left e -> Nothing <$ error e
+        Right y -> pure (Just (Json' y))
+  encodeOp IdJson' = unsafePerformEffect do
+    b <- encodeArrayBuffer "id"
+    AV <$> whole b
+  decodeOp (AV t) = unsafePerformEffect do
+    ms <- decodeArrayBuffer (buffer t)
+    case ms of
+      Nothing -> pure Nothing
+      Just s
+        | s == "id" -> pure (Just IdJson')
+        | otherwise -> pure Nothing
