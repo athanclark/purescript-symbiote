@@ -1,17 +1,24 @@
 module Test.Serialization.Symbiote.ArrayBuffer where
 
-import Prelude ((<$>))
+import Prelude
 import Test.Serialization.Symbiote (class SymbioteOperation, class Symbiote, perform)
 import Data.Generic.Rep (class Generic)
-import Data.ArrayBuffer.Types (ArrayBuffer)
+import Data.UInt (UInt)
+import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
+import Data.ArrayBuffer.Typed (whole, buffer)
+import Data.ArrayBuffer.Typed.Unsafe (AV (..))
 import Data.ArrayBuffer.Class
   ( class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength
   , encodeArrayBuffer, decodeArrayBuffer) as AB
 import Effect.Unsafe (unsafePerformEffect)
+import Test.QuickCheck (class Arbitrary)
 
 
 newtype ToArrayBuffer a = ToArrayBuffer a
 derive instance genericToArrayBuffer :: Generic a a' => Generic (ToArrayBuffer a) _
+derive newtype instance arbitraryToArrayBuffer :: Arbitrary a => Arbitrary (ToArrayBuffer a)
+derive newtype instance eqToArrayBuffer :: Eq a => Eq (ToArrayBuffer a)
+derive newtype instance showToArrayBuffer :: Show a => Show (ToArrayBuffer a)
 
 instance symbioteOperationToArrayBuffer :: SymbioteOperation a op => SymbioteOperation (ToArrayBuffer a) (ToArrayBuffer op) where
   perform (ToArrayBuffer x) (ToArrayBuffer y) = ToArrayBuffer (perform x y)
@@ -24,8 +31,12 @@ instance symbioteToArrayBuffer ::
   , AB.DecodeArrayBuffer op
   , AB.DynamicByteLength a
   , AB.DynamicByteLength op
-  ) => Symbiote (ToArrayBuffer a) (ToArrayBuffer op) ArrayBuffer where
-  encode (ToArrayBuffer x) = unsafePerformEffect (AB.encodeArrayBuffer x)
-  decode x = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer x))
-  encodeOp (ToArrayBuffer x) = unsafePerformEffect (AB.encodeArrayBuffer x)
-  decodeOp x = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer x))
+  ) => Symbiote (ToArrayBuffer a) (ToArrayBuffer op) (AV Uint8 UInt) where
+  encode (ToArrayBuffer x) = unsafePerformEffect do
+    b <- AB.encodeArrayBuffer x
+    AV <$> whole b
+  decode (AV t) = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer (buffer t)))
+  encodeOp (ToArrayBuffer x) = unsafePerformEffect do
+    b <- AB.encodeArrayBuffer x
+    AV <$> whole b
+  decodeOp (AV t) = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer (buffer t)))

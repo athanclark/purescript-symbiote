@@ -3,6 +3,7 @@ module Test.Main where
 import Test.Serialization.Symbiote
   (class SymbioteOperation, class Symbiote, Topic (..), register, SymbioteT, EitherOp, simpleTest)
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut)
+import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 
 import Prelude
 import Data.Generic.Rep (class Generic)
@@ -19,7 +20,10 @@ import Data.Maybe (Maybe (..))
 import Data.Tuple (Tuple (..))
 import Data.Array (reverse, init, tail) as Array
 import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
-import Data.ArrayBuffer.Class (encodeArrayBuffer, decodeArrayBuffer)
+import Data.ArrayBuffer.Class
+  ( class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength
+  , encodeArrayBuffer, decodeArrayBuffer, byteLength, putArrayBuffer, readArrayBuffer)
+import Data.ArrayBuffer.Class.Types (Int32BE (..), Float64BE (..), Int8 (..))
 import Data.ArrayBuffer.Typed (whole, buffer)
 import Data.ArrayBuffer.Typed.Unsafe (AV (..))
 import Data.UInt (UInt)
@@ -63,10 +67,14 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
           (Proxy :: Proxy {value :: Array' Int', operation :: Array'Operation})
     arraybufferTests = describe "ArrayBuffer Tests" do
       it "Json over id" (simpleTest jsonSuite)
+      it "Int over various" (simpleTest intSuite)
       where
         jsonSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         jsonSuite = register (Topic "Json") 100
           (Proxy :: Proxy {value :: Json', operation :: Json'Operation})
+        intSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
+        intSuite = register (Topic "Int") 100
+          (Proxy :: Proxy {value :: ToArrayBuffer Int', operation :: ToArrayBuffer Int'Operation})
 
 
 
@@ -109,6 +117,16 @@ derive newtype instance eqInt' :: Eq Int'
 derive newtype instance arbitraryInt' :: Arbitrary Int'
 derive newtype instance encodeJsonInt' :: EncodeJson Int'
 derive newtype instance decodeJsonInt' :: DecodeJson Int'
+instance dynamicByteLengthInt' :: DynamicByteLength Int' where
+  byteLength (Int' x) = byteLength (Int32BE x)
+instance encodeArrayBufferInt' :: EncodeArrayBuffer Int' where
+  putArrayBuffer b o (Int' x) = putArrayBuffer b o (Int32BE x)
+instance decodeArrayBufferInt' :: DecodeArrayBuffer Int' where
+  readArrayBuffer b o = do
+    mx <- readArrayBuffer b o
+    case mx of
+      Nothing -> pure Nothing
+      Just (Int32BE x) -> pure (Just (Int' x))
 data Int'Operation
   = AddInt Int
   | DelInt Int
@@ -152,6 +170,41 @@ instance decodeJsonInt'Operation :: DecodeJson Int'Operation where
       tryMod = do
         ({mod} :: {mod :: Int}) <- decodeJson x
         pure (ModInt mod)
+instance dynamicByteLengthInt'Operation :: DynamicByteLength Int'Operation where
+  byteLength x = case x of
+    AddInt y -> (_ + 1) <$> byteLength (Int32BE y)
+    DelInt y -> (_ + 1) <$> byteLength (Int32BE y)
+    DivInt y -> (_ + 1) <$> byteLength (Int32BE y)
+    MulInt y -> (_ + 1) <$> byteLength (Int32BE y)
+    ModInt y -> (_ + 1) <$> byteLength (Int32BE y)
+instance encodeArrayBufferInt'Operation :: EncodeArrayBuffer Int'Operation where
+  putArrayBuffer b o op = case op of
+    AddInt x -> putArrayBuffer b o (Int8 0) >>= cont x
+    DelInt x -> putArrayBuffer b o (Int8 1) >>= cont x
+    DivInt x -> putArrayBuffer b o (Int8 2) >>= cont x
+    MulInt x -> putArrayBuffer b o (Int8 3) >>= cont x
+    ModInt x -> putArrayBuffer b o (Int8 4) >>= cont x
+    where
+      cont x ml =
+        case ml of
+          Nothing -> pure Nothing
+          Just l -> (map (_ + 1)) <$> putArrayBuffer b (o + l) (Int32BE x)
+instance decodeArrayBufferInt'Operation :: DecodeArrayBuffer Int'Operation where
+  readArrayBuffer b o = do
+    mopcode <- readArrayBuffer b o
+    case mopcode of
+      Nothing -> pure Nothing
+      Just (Int8 opcode) -> do
+        mX <- readArrayBuffer b (o + 1)
+        case mX of
+          Nothing -> pure Nothing
+          Just (Int32BE x) -> pure $ case opcode of
+            0 -> Just $ AddInt x
+            1 -> Just $ DelInt x
+            2 -> Just $ DivInt x
+            3 -> Just $ MulInt x
+            4 -> Just $ ModInt x
+            _ -> Nothing
 instance symbioteOperationInt' :: SymbioteOperation Int' Int'Operation where
   perform op (Int' x) = case op of
     AddInt y -> Int' (x + y)
@@ -168,6 +221,16 @@ derive newtype instance eqNumber' :: Eq Number'
 derive newtype instance arbitraryNumber' :: Arbitrary Number'
 derive newtype instance encodeJsonNumber' :: EncodeJson Number'
 derive newtype instance decodeJsonNumber' :: DecodeJson Number'
+instance dynamicByteLengthNumber' :: DynamicByteLength Number' where
+  byteLength (Number' x) = byteLength (Float64BE x)
+instance encodeArrayBufferNumber' :: EncodeArrayBuffer Number' where
+  putArrayBuffer b o (Number' x) = putArrayBuffer b o (Float64BE x)
+instance decodeArrayBufferNumber' :: DecodeArrayBuffer Number' where
+  readArrayBuffer b o = do
+    mx <- readArrayBuffer b o
+    case mx of
+      Nothing -> pure Nothing
+      Just (Float64BE x) -> pure (Just (Number' x))
 data Number'Operation
   = AddNumber Number
   | DelNumber Number
