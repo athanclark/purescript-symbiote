@@ -53,6 +53,7 @@ instance symbioteEitherOp :: Exposed.SymbioteOperation a op => Symbiote a op (Ei
   decodeOp (EitherOp (Right x)) = Just x
 
 
+-- | Register a topic in the test suite
 register :: forall a op s m
           . Arbitrary a
          => Arbitrary op
@@ -79,9 +80,10 @@ register topic maxSize Proxy = do
         }
   void (modify (Map.insert topic (mkExists newState)))
 
+-- | Messages sent by a peer during their generating phase
 data Generating s
   = Generated {value :: s, operation :: s}
-  | BadResult s
+  | BadResult s -- ^ Expected value
   | YourTurn
   | ImFinished
   | GeneratingNoParseOperated s
@@ -92,8 +94,9 @@ instance showGenerating :: (Show s, Generic s s') => Show (Generating s) where
   show = genericShow
 
 
+-- | Messages sent by a peer during their operating phase
 data Operating s
-  = Operated s
+  = Operated s -- ^ Serialized value after operation
   | OperatingNoParseValue s
   | OperatingNoParseOperation s
 derive instance genericOperating :: Generic s s' => Generic (Operating s) _
@@ -103,8 +106,9 @@ instance showOperating :: (Show s, Generic s s') => Show (Operating s) where
   show = genericShow
 
 
+-- | Messages sent by the first peer
 data First s
-  = AvailableTopics (Map Topic Int)
+  = AvailableTopics (Map Topic Int) -- ^ Mapping of topics to their gen size
   | FirstGenerating {topic :: Topic, generating :: Generating s}
   | FirstOperating {topic :: Topic, operating :: Operating s}
 derive instance genericFirst :: Generic s s' => Generic (First s) _
@@ -124,6 +128,7 @@ getFirstOperating x = case x of
   _ -> Nothing
 
 
+-- | Messages sent by the second peer
 data Second s
   = BadTopics (Map Topic Int)
   | Start
@@ -160,7 +165,6 @@ data Failure them s
     }
   | CantParseOperated Topic s
   | CantParseGeneratedValue Topic s
-  | CantParseGeneratedOperation Topic s
   | CantParseLocalValue Topic s
   | CantParseLocalOperation Topic s
   | BadOperating Topic (Operating s)
@@ -199,6 +203,7 @@ nullProgress :: Topic -> Number -> Effect Unit
 nullProgress _ _ = pure unit
 
 
+-- | Run the test suite as the first peer
 firstPeer :: forall m s
            . MonadEffect m
           => MonadAff m
@@ -233,8 +238,8 @@ firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
                     hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
                     generating
                       encodeAndSend receiveAndDecode
-                      (\topic generating -> FirstGenerating {topic,generating})
-                      (\topic operating -> FirstOperating {topic,operating})
+                      (\topic' generating' -> FirstGenerating {topic:topic',generating:generating'})
+                      (\topic' operating' -> FirstOperating {topic:topic',operating:operating'})
                       getSecondGenerating getSecondOperating
                       hasSentFinishedVar hasReceivedFinishedVar
                       processAllTopics
@@ -246,6 +251,7 @@ firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
     _ -> onFailure $ OutOfSyncSecond shouldBeStart
 
 
+-- | Run the test suite as the second peer
 secondPeer :: forall s m
             . MonadEffect m
            => MonadAff m
@@ -284,8 +290,8 @@ secondPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
                         hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
                         operating
                           encodeAndSend receiveAndDecode
-                          (\topic generating -> SecondGenerating {topic,generating})
-                          (\topic operating -> SecondOperating {topic,operating})
+                          (\topic' generating' -> SecondGenerating {topic:topic',generating:generating'})
+                          (\topic' operating' -> SecondOperating {topic:topic',operating:operating'})
                           getFirstGenerating getFirstOperating
                           hasSentFinishedVar hasReceivedFinishedVar
                           processAllTopics

@@ -19,7 +19,7 @@ import Data.Either (Either (..))
 import Data.Maybe (Maybe (..))
 import Data.Tuple (Tuple (..))
 import Data.Array (reverse, init, tail) as Array
-import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
+import Data.ArrayBuffer.Types (Uint8)
 import Data.ArrayBuffer.Class
   ( class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength
   , encodeArrayBuffer, decodeArrayBuffer, byteLength, putArrayBuffer, readArrayBuffer)
@@ -31,9 +31,9 @@ import Control.Alternative ((<|>))
 import Foreign.Object (fromFoldable) as Object
 import Effect (Effect)
 import Effect.Aff (Aff, launchAff_)
-import Effect.Console (error, log)
+import Effect.Console (error)
 import Effect.Unsafe (unsafePerformEffect)
-import Test.Spec (describe, pending, it)
+import Test.Spec (describe, it)
 import Test.Spec.Runner (runSpec', defaultConfig)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.QuickCheck (class Arbitrary, arbitrary)

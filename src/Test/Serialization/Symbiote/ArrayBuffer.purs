@@ -4,7 +4,7 @@ import Prelude
 import Test.Serialization.Symbiote (class SymbioteOperation, class Symbiote, perform)
 import Data.Generic.Rep (class Generic)
 import Data.UInt (UInt)
-import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
+import Data.ArrayBuffer.Types (Uint8)
 import Data.ArrayBuffer.Typed (whole, buffer)
 import Data.ArrayBuffer.Typed.Unsafe (AV (..))
 import Data.ArrayBuffer.Class
@@ -13,7 +13,8 @@ import Data.ArrayBuffer.Class
 import Effect.Unsafe (unsafePerformEffect)
 import Test.QuickCheck (class Arbitrary)
 
-
+-- | Wrap your subject-matter type and operations type with this, to get a system that serializes to
+-- | `(AV Uint8 UInt)` - a typed version of an `ArrayBuffer`.
 newtype ToArrayBuffer a = ToArrayBuffer a
 derive instance genericToArrayBuffer :: Generic a a' => Generic (ToArrayBuffer a) _
 derive newtype instance arbitraryToArrayBuffer :: Arbitrary a => Arbitrary (ToArrayBuffer a)

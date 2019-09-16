@@ -5,10 +5,13 @@ import Test.Serialization.Symbiote (class SymbioteOperation, class Symbiote, per
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (Maybe (..))
 import Data.Either (Either (..))
-import Data.Argonaut (Json, class EncodeJson, class DecodeJson, encodeJson, decodeJson, stringify, Json) as Json
+import Data.Argonaut (Json)
+import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson, stringify) as Json
 import Test.QuickCheck (class Arbitrary)
 
 
+-- | Wrap your subject-matter type and operations type with this, to get a system that serializes to
+-- | `Json` - but only through `ShowJson` because it lacks the `Show` instance.
 newtype ToArgonaut a = ToArgonaut a
 derive instance genericToArgonaut :: Generic a a' => Generic (ToArgonaut a) _
 derive newtype instance arbitraryToArgonaut :: Arbitrary a => Arbitrary (ToArgonaut a)
@@ -36,7 +39,7 @@ instance symbioteToArgonaut ::
 
 
 -- | Simple newtype to make the serialized output `Show`able
-newtype ShowJson = ShowJson Json.Json
+newtype ShowJson = ShowJson Json
 derive instance genericShowJson :: Generic ShowJson _
 derive newtype instance eqShowJson :: Eq ShowJson
 instance showShowJson :: Show ShowJson where
