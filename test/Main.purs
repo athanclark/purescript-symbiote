@@ -68,6 +68,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
     arraybufferTests = describe "ArrayBuffer Tests" do
       it "Json over id" (simpleTest jsonSuite)
       it "Int over various" (simpleTest intSuite)
+      it "Number over various" (simpleTest numberSuite)
       where
         jsonSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         jsonSuite = register (Topic "Json") 100
@@ -75,6 +76,9 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         intSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         intSuite = register (Topic "Int") 100
           (Proxy :: Proxy {value :: ToArrayBuffer Int', operation :: ToArrayBuffer Int'Operation})
+        numberSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
+        numberSuite = register (Topic "Number") 100
+          (Proxy :: Proxy {value :: ToArrayBuffer Number', operation :: ToArrayBuffer Number'Operation})
 
 
 
@@ -276,6 +280,42 @@ instance decodeJsonNumber'Operation :: DecodeJson Number'Operation where
         if r == "recip"
           then pure RecipNumber
           else Left "Not a Recip"
+instance dynamicByteLengthNumber'Operation :: DynamicByteLength Number'Operation where
+  byteLength x = case x of
+    AddNumber y -> (_ + 1) <$> byteLength (Float64BE y)
+    DelNumber y -> (_ + 1) <$> byteLength (Float64BE y)
+    DivNumber y -> (_ + 1) <$> byteLength (Float64BE y)
+    MulNumber y -> (_ + 1) <$> byteLength (Float64BE y)
+    RecipNumber -> pure 1
+instance encodeArrayBufferNumber'Operation :: EncodeArrayBuffer Number'Operation where
+  putArrayBuffer b o op = case op of
+    AddNumber x -> putArrayBuffer b o (Int8 0) >>= cont x
+    DelNumber x -> putArrayBuffer b o (Int8 1) >>= cont x
+    DivNumber x -> putArrayBuffer b o (Int8 2) >>= cont x
+    MulNumber x -> putArrayBuffer b o (Int8 3) >>= cont x
+    RecipNumber -> putArrayBuffer b o (Int8 4)
+    where
+      cont x ml =
+        case ml of
+          Nothing -> pure Nothing
+          Just l -> (map (_ + 1)) <$> putArrayBuffer b (o + l) (Float64BE x)
+instance decodeArrayBufferNumber'Operation :: DecodeArrayBuffer Number'Operation where
+  readArrayBuffer b o = do
+    mopcode <- readArrayBuffer b o
+    case mopcode of
+      Nothing -> pure Nothing
+      Just (Int8 opcode)
+        | opcode == 4 -> pure $ Just RecipNumber
+        | otherwise -> do
+        mX <- readArrayBuffer b (o + 1)
+        case mX of
+          Nothing -> pure Nothing
+          Just (Float64BE x) -> pure $ case opcode of
+            0 -> Just $ AddNumber x
+            1 -> Just $ DelNumber x
+            2 -> Just $ DivNumber x
+            3 -> Just $ MulNumber x
+            _ -> Nothing
 instance symbioteOperationNumber' :: SymbioteOperation Number' Number'Operation where
   perform op (Number' x) = case op of
     AddNumber y -> Number' (x + y)
