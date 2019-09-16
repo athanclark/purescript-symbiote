@@ -2,7 +2,7 @@ module Test.Main where
 
 import Test.Serialization.Symbiote
   (class SymbioteOperation, class Symbiote, Topic (..), register, SymbioteT, EitherOp, simpleTest)
-import Test.Serialization.Symbiote.Argonaut (ToArgonaut)
+import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 
 import Prelude
@@ -46,6 +46,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
   describe "All Tests" do
     simpleTests
     arraybufferTests
+    jsonTests
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
@@ -69,6 +70,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
       it "Json over id" (simpleTest jsonSuite)
       it "Int over various" (simpleTest intSuite)
       it "Number over various" (simpleTest numberSuite)
+      it "Array over various" (simpleTest arraySuite)
       where
         jsonSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         jsonSuite = register (Topic "Json") 100
@@ -79,6 +81,23 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         numberSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         numberSuite = register (Topic "Number") 100
           (Proxy :: Proxy {value :: ToArrayBuffer Number', operation :: ToArrayBuffer Number'Operation})
+        arraySuite :: SymbioteT (AV Uint8 UInt) Aff Unit
+        arraySuite = register (Topic "Array") 100
+          (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), operation :: ToArrayBuffer Array'Operation})
+    jsonTests = describe "Json Tests" do
+      it "Int over various" (simpleTest intSuite)
+      it "Number over various" (simpleTest numberSuite)
+      it "Array over various" (simpleTest arraySuite)
+      where
+        intSuite :: SymbioteT ShowJson Aff Unit
+        intSuite = register (Topic "Int") 100
+          (Proxy :: Proxy {value :: ToArgonaut Int', operation :: ToArgonaut Int'Operation})
+        numberSuite :: SymbioteT ShowJson Aff Unit
+        numberSuite = register (Topic "Number") 100
+          (Proxy :: Proxy {value :: ToArgonaut Number', operation :: ToArgonaut Number'Operation})
+        arraySuite :: SymbioteT ShowJson Aff Unit
+        arraySuite = register (Topic "Array") 100
+          (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), operation :: ToArgonaut Array'Operation})
 
 
 
@@ -332,6 +351,9 @@ derive newtype instance eqArray' :: Eq a => Eq (Array' a)
 derive newtype instance arbitraryArray' :: Arbitrary a => Arbitrary (Array' a)
 derive newtype instance encodeJsonArray' :: EncodeJson a => EncodeJson (Array' a)
 derive newtype instance decodeJsonArray' :: DecodeJson a => DecodeJson (Array' a)
+derive newtype instance dynamicByteLengthArray' :: DynamicByteLength a => DynamicByteLength (Array' a)
+derive newtype instance encodeArrayBufferArray' :: EncodeArrayBuffer a => EncodeArrayBuffer (Array' a)
+derive newtype instance decodeArrayBufferArray' :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (Array' a)
 data Array'Operation
   = ReverseArray
   | InitArray
@@ -358,6 +380,23 @@ instance decodeJsonArray'Operation :: DecodeJson Array'Operation where
         | s == "init" -> pure InitArray
         | s == "tail" -> pure TailArray
         | otherwise -> Left "Not a Array"
+instance dynamicByteLengthArray'Operation :: DynamicByteLength Array'Operation where
+  byteLength _ = pure 1
+instance encodeArrayBufferArray'Operation :: EncodeArrayBuffer Array'Operation where
+  putArrayBuffer b o op = putArrayBuffer b o $ Int8 $ case op of
+    ReverseArray -> 0
+    InitArray -> 1
+    TailArray -> 2
+instance decodeArrayBufferArray'Operation :: DecodeArrayBuffer Array'Operation where
+  readArrayBuffer b o = do
+    mx <- readArrayBuffer b o
+    case mx of
+      Nothing -> pure Nothing
+      Just (Int8 x)
+        | x == 0 -> pure (Just ReverseArray)
+        | x == 1 -> pure (Just InitArray)
+        | x == 2 -> pure (Just TailArray)
+        | otherwise -> pure Nothing
 instance symbioteOperationArray' :: SymbioteOperation (Array' a) Array'Operation where
   perform op (Array' x) = case op of
     ReverseArray -> Array' $ Array.reverse x
