@@ -21,22 +21,29 @@ derive newtype instance arbitraryToArrayBuffer :: Arbitrary a => Arbitrary (ToAr
 derive newtype instance eqToArrayBuffer :: Eq a => Eq (ToArrayBuffer a)
 derive newtype instance showToArrayBuffer :: Show a => Show (ToArrayBuffer a)
 
-instance symbioteOperationToArrayBuffer :: SymbioteOperation a op => SymbioteOperation (ToArrayBuffer a) (ToArrayBuffer op) where
+instance symbioteOperationToArrayBuffer :: SymbioteOperation a o op => SymbioteOperation (ToArrayBuffer a) (ToArrayBuffer o) (ToArrayBuffer op) where
   perform (ToArrayBuffer x) (ToArrayBuffer y) = ToArrayBuffer (perform x y)
 
 instance symbioteToArrayBuffer ::
-  ( SymbioteOperation (ToArrayBuffer a) (ToArrayBuffer op)
+  ( SymbioteOperation (ToArrayBuffer a) (ToArrayBuffer o) (ToArrayBuffer op)
   , AB.EncodeArrayBuffer a
+  , AB.EncodeArrayBuffer o
   , AB.EncodeArrayBuffer op
   , AB.DecodeArrayBuffer a
+  , AB.DecodeArrayBuffer o
   , AB.DecodeArrayBuffer op
   , AB.DynamicByteLength a
+  , AB.DynamicByteLength o
   , AB.DynamicByteLength op
-  ) => Symbiote (ToArrayBuffer a) (ToArrayBuffer op) (AV Uint8 UInt) where
+  ) => Symbiote (ToArrayBuffer a) (ToArrayBuffer o) (ToArrayBuffer op) (AV Uint8 UInt) where
   encode (ToArrayBuffer x) = unsafePerformEffect do
     b <- AB.encodeArrayBuffer x
     AV <$> whole b
   decode (AV t) = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer (buffer t)))
+  encodeOut _ (ToArrayBuffer x) = unsafePerformEffect do
+    b <- AB.encodeArrayBuffer x
+    AV <$> whole b
+  decodeOut _ (AV t) = ToArrayBuffer <$> (unsafePerformEffect (AB.decodeArrayBuffer (buffer t)))
   encodeOp (ToArrayBuffer x) = unsafePerformEffect do
     b <- AB.encodeArrayBuffer x
     AV <$> whole b

@@ -1,24 +1,25 @@
 module Test.Serialization.Symbiote
   ( module Exposed
-  , EitherOp (..), register
+  , SimpleSerialization (..), register
   , firstPeer, secondPeer, First (..), Second (..), Generating (..), Operating (..), Failure (..)
-  , defaultSuccess, defaultFailure, defaultProgress, nullProgress, simpleTest
+  , defaultSuccess, defaultFailure, defaultProgress, nullProgress, simpleTest, simpleTest'
   ) where
 
 import Test.Serialization.Symbiote.Core
   ( Topic (..), newGeneration, class Symbiote, encodeOp, decodeOp, perform, SymbioteT, runSymbioteT
-  , SymbioteState (..), encode, decode, getProgress, generateSymbiote, GenerateSymbiote (..))
+  , SymbioteState (..), encode, decode, encodeOut, decodeOut
+  , getProgress, generateSymbiote, GenerateSymbiote (..), ExistsSymbiote
+  , mkExistsSymbiote, runExistsSymbiote)
 import Test.Serialization.Symbiote.Core
-  ( Topic (..), SymbioteT, class SymbioteOperation, perform, class Symbiote, encode, decode, encodeOp, decodeOp
+  ( Topic (..), SymbioteT, class SymbioteOperation, perform, class Symbiote
+  , encode, decode, encodeOp, decodeOp, encodeOut, decodeOut
   ) as Exposed
 
 import Prelude
-import Data.Exists (Exists, mkExists, runExists)
 import Data.Map (Map)
 import Data.Map (insert, keys, lookup) as Map
 import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
-import Data.Either (Either (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
@@ -39,34 +40,48 @@ import Partial.Unsafe (unsafePartial)
 
 
 -- | The most trivial serialization medium for any @a@.
-newtype EitherOp a op = EitherOp (Either a op)
-derive instance genericEitherOp :: (Generic a a', Generic op op') => Generic (EitherOp a op) _
-derive newtype instance eqEitherOp :: (Eq a, Eq op) => Eq (EitherOp a op)
-derive newtype instance showEitherOp :: (Show a, Show op) => Show (EitherOp a op)
+data SimpleSerialization a o op
+  = SimpleValue a
+  | SimpleOutput o
+  | SimpleOperation op
+derive instance genericSimpleSerialization :: (Generic a a', Generic o o', Generic op op') => Generic (SimpleSerialization a o op) _
+instance eqSimpleSerialization ::
+  ( Eq a, Eq o, Eq op
+  , Generic a a', Generic o o', Generic op op'
+  ) => Eq (SimpleSerialization a o op) where
+  eq = genericEq
+instance showSimpleSerialization ::
+  ( Show a, Show o, Show op
+  , Generic a a', Generic o o', Generic op op'
+  ) => Show (SimpleSerialization a o op) where
+  show = genericShow
 
-instance symbioteEitherOp :: Exposed.SymbioteOperation a op => Symbiote a op (EitherOp a op) where
-  encode = EitherOp <<< Left
-  decode (EitherOp (Left x)) = Just x
-  decode (EitherOp (Right _)) = Nothing
-  encodeOp = EitherOp <<< Right
-  decodeOp (EitherOp (Left _)) = Nothing
-  decodeOp (EitherOp (Right x)) = Just x
+instance symbioteSimpleSerialization :: Exposed.SymbioteOperation a o op => Symbiote a o op (SimpleSerialization a o op) where
+  encode = SimpleValue
+  decode (SimpleValue x) = Just x
+  decode _ = Nothing
+  encodeOut _ = SimpleOutput
+  decodeOut _ (SimpleOutput x) = Just x
+  decodeOut _ _ = Nothing
+  encodeOp = SimpleOperation
+  decodeOp (SimpleOperation x) = Just x
+  decodeOp _ = Nothing
 
 
 -- | Register a topic in the test suite
-register :: forall a op s m
+register :: forall a o op s m
           . Arbitrary a
          => Arbitrary op
-         => Symbiote a op s
-         => Eq a
+         => Symbiote a o op s
+         => Eq o
          => MonadEffect m
          => Topic
          -> Int -- ^ Max size
-         -> Proxy {value :: a, operation :: op}
+         -> Proxy {value :: a, output :: o, operation :: op}
          -> SymbioteT s m Unit
 register topic maxSize Proxy = do
   generation <- liftEffect (Ref.new newGeneration)
-  let newState :: SymbioteState s a
+  let newState :: SymbioteState a o s
       newState = SymbioteState
         { generate: arbitrary
         , generateOp: encodeOp <$> (arbitrary :: _ op)
@@ -74,11 +89,13 @@ register topic maxSize Proxy = do
         , maxSize
         , generation
         , encode': encode
+        , encodeOut': encodeOut (Proxy :: Proxy a)
         , decode': decode
+        , decodeOut': decodeOut (Proxy :: Proxy a)
         , perform': unsafePartial $ \op x -> case decodeOp op of
           Just (op' :: op) -> perform op' x
         }
-  void (modify (Map.insert topic (mkExists newState)))
+  void (modify (Map.insert topic (mkExistsSymbiote newState)))
 
 -- | Messages sent by a peer during their generating phase
 data Generating s
@@ -196,10 +213,10 @@ defaultFailure f = error $ "Failure: " <> show f
 
 -- | Via putStrLn
 defaultProgress :: Topic -> Number -> Effect Unit
-defaultProgress (Topic t) p = log $ "Topic " <> t <> ": " <> {- printf "%.2f" -} show (p * 100.0) <> "%"
+defaultProgress (Topic t) p = log $ "Topic " <> t <> ": " <> show (p * 100.0) <> "%"
 
 -- | Do nothing
-nullProgress :: Topic -> Number -> Effect Unit
+nullProgress :: forall m. Applicative m => Topic -> Number -> m Unit
 nullProgress _ _ = pure unit
 
 
@@ -217,14 +234,15 @@ firstPeer :: forall m s
           -> m Unit
 firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
   state <- runSymbioteT x true
-  let topics = (\e -> runExists (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
+  let topics = (\e -> runExistsSymbiote (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
   encodeAndSend (AvailableTopics topics)
   shouldBeStart <- receiveAndDecode
   case shouldBeStart of
     BadTopics badTopics -> onFailure $ BadTopicsFailure {first: topics, second: badTopics}
     Start -> do
       topicsToProcess <- liftEffect (Ref.new (Map.keys topics))
-      let processAllTopics = do
+      let processAllTopics :: m Unit
+          processAllTopics = do
             topics' <- liftEffect (Ref.read topicsToProcess)
             case Set.findMax topics' of
               Nothing -> pure unit -- done
@@ -234,8 +252,8 @@ firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
                 case Map.lookup topic state of
                   Nothing -> onFailure $ TopicNonexistent topic
                   Just symbioteState -> do
-                    hasSentFinishedVar <- liftEffect $ Ref.new HasntSentFinished
-                    hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
+                    hasSentFinishedVar <- liftEffect (Ref.new HasntSentFinished)
+                    hasReceivedFinishedVar <- liftEffect (Ref.new HasntReceivedFinished)
                     generating
                       encodeAndSend receiveAndDecode
                       (\topic' generating' -> FirstGenerating {topic:topic',generating:generating'})
@@ -268,7 +286,7 @@ secondPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
   shouldBeAvailableTopics <- receiveAndDecode
   case shouldBeAvailableTopics of
     AvailableTopics topics -> do
-      let myTopics = (\e -> runExists (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
+      let myTopics = (\e -> runExistsSymbiote (\(SymbioteState {maxSize}) -> maxSize) e) <$> state
       if myTopics /= topics
         then do
           encodeAndSend (BadTopics myTopics)
@@ -276,7 +294,8 @@ secondPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
         else do
           encodeAndSend Start
           topicsToProcess <- liftEffect (Ref.new (Map.keys topics))
-          let processAllTopics = do
+          let processAllTopics :: m Unit
+              processAllTopics = do
                 topics' <- liftEffect (Ref.read topicsToProcess)
                 case Set.findMax topics' of
                   Nothing -> pure unit -- done
@@ -286,8 +305,8 @@ secondPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
                     case Map.lookup topic state of
                       Nothing -> onFailure $ TopicNonexistent topic
                       Just symbioteState -> do
-                        hasSentFinishedVar <- liftEffect $ Ref.new HasntSentFinished
-                        hasReceivedFinishedVar <- liftEffect $ Ref.new HasntReceivedFinished
+                        hasSentFinishedVar <- liftEffect (Ref.new HasntSentFinished)
+                        hasReceivedFinishedVar <- liftEffect (Ref.new HasntReceivedFinished)
                         operating
                           encodeAndSend receiveAndDecode
                           (\topic' generating' -> SecondGenerating {topic:topic',generating:generating'})
@@ -329,7 +348,7 @@ generating :: forall s m them me
            -> (Failure them s -> m Unit) -- ^ report topic failure
            -> (Topic -> Number -> m Unit) -- ^ report topic progress
            -> Topic
-           -> Exists (SymbioteState s)
+           -> ExistsSymbiote s
            -> m Unit
 generating
   encodeAndSend receiveAndDecode
@@ -340,15 +359,15 @@ generating
   onSuccess
   onFailure
   onProgress
-  topic symbioteState = runExists go symbioteState
+  topic symbioteState = runExistsSymbiote go symbioteState
   where
-    go :: forall a. SymbioteState s a -> m Unit
-    go (SymbioteState{equal,encode',decode',perform'}) = do
+    go :: forall a o. SymbioteState a o s -> m Unit
+    go (SymbioteState{equal,encode',decode',perform',decodeOut',encodeOut'}) = do
       mGenerated <- generateSymbiote symbioteState
       case mGenerated of
         DoneGenerating -> do
-          encodeAndSend $ makeGen topic ImFinished
-          liftEffect $ Ref.write HasSentFinished hasSentFinishedVar
+          encodeAndSend (makeGen topic ImFinished)
+          liftEffect (Ref.write HasSentFinished hasSentFinishedVar)
           operatingTryFinished
         GeneratedSymbiote
           { generatedValue: generatedValueEncoded
@@ -366,7 +385,7 @@ generating
               | secondOperatingTopic /= topic ->
                 onFailure $ WrongTopic {expected: topic, got: secondOperatingTopic}
               | otherwise -> case shouldBeOperated of
-                  Operated operatedValueEncoded -> case decode' operatedValueEncoded of
+                  Operated operatedValueEncoded -> case decodeOut' operatedValueEncoded of
                     Nothing -> do
                       encodeAndSend $ makeGen topic $ GeneratingNoParseOperated operatedValueEncoded
                       onFailure $ CantParseOperated topic operatedValueEncoded
@@ -374,10 +393,11 @@ generating
                       Nothing -> onFailure $ CantParseLocalValue topic generatedValueEncoded
                       Just generatedValue -> do
                         -- decoded operated value, generated value & operation
-                        let expected = perform' generatedOperationEncoded generatedValue
-                        if equal expected operatedValue
+                        let expected :: o
+                            expected = perform' generatedOperationEncoded generatedValue
+                        if  equal expected operatedValue
                           then do
-                            encodeAndSend $ makeGen topic YourTurn
+                            encodeAndSend (makeGen topic YourTurn)
                             progress <- getProgress symbioteState
                             onProgress topic progress
                             operating
@@ -392,12 +412,13 @@ generating
                               topic symbioteState
                           else do
                             encodeAndSend $ makeGen topic $ BadResult operatedValueEncoded
-                            onFailure $ SafeFailure {topic, expected: encode' expected, got: operatedValueEncoded}
+                            onFailure $ SafeFailure {topic, expected: encodeOut' expected, got: operatedValueEncoded}
                   _ -> onFailure $ BadOperating topic shouldBeOperated
             _ -> onFailure $ BadThem topic shouldBeOperating
       where
+        operatingTryFinished :: m Unit
         operatingTryFinished = do
-          hasReceivedFinished <- liftEffect $ Ref.read hasReceivedFinishedVar
+          hasReceivedFinished <- liftEffect (Ref.read hasReceivedFinishedVar)
           case hasReceivedFinished of
             HasReceivedFinished -> do
               onSuccess topic
@@ -435,7 +456,7 @@ operating :: forall s m them me
           -> (Failure them s -> m Unit) -- ^ report topic failure
           -> (Topic -> Number -> m Unit) -- ^ report topic progress
           -> Topic
-          -> Exists (SymbioteState s)
+          -> ExistsSymbiote s
           -> m Unit
 operating
   encodeAndSend receiveAndDecode
@@ -446,10 +467,10 @@ operating
   onSuccess
   onFailure
   onProgress
-  topic symbioteState = runExists go symbioteState
+  topic symbioteState = runExistsSymbiote go symbioteState
   where
-    go :: forall a. SymbioteState s a -> m Unit
-    go (SymbioteState{decode',perform',encode'}) = do
+    go :: forall a o. SymbioteState a o s -> m Unit
+    go (SymbioteState{decode',perform',encode',encodeOut'}) = do
       shouldBeGenerating <- receiveAndDecode
       case getGen shouldBeGenerating of
         Just {topic:secondGeneratingTopic,generating:shouldBeGenerated}
@@ -457,7 +478,7 @@ operating
             onFailure $ WrongTopic {expected: topic, got: secondGeneratingTopic}
           | otherwise -> case shouldBeGenerated of
               ImFinished -> do
-                liftEffect $ Ref.write HasReceivedFinished hasReceivedFinishedVar
+                liftEffect (Ref.write HasReceivedFinished hasReceivedFinishedVar)
                 generatingTryFinished
               YourTurn -> do
                 progress <- getProgress symbioteState
@@ -480,7 +501,7 @@ operating
                   encodeAndSend $ makeOp topic $ OperatingNoParseValue generatedValueEncoded
                   onFailure $ CantParseGeneratedValue topic generatedValueEncoded
                 Just (generatedValue :: a) -> do
-                  encodeAndSend $ makeOp topic $ Operated $ encode' $ perform' generatedOperationEncoded generatedValue
+                  encodeAndSend $ makeOp topic $ Operated $ encodeOut' $ perform' generatedOperationEncoded generatedValue
                   -- wait for response
                   operating
                     encodeAndSend
@@ -496,8 +517,9 @@ operating
               _ -> onFailure $ BadGenerating topic shouldBeGenerated
         _ -> onFailure $ BadThem topic shouldBeGenerating
       where
+        generatingTryFinished :: m Unit
         generatingTryFinished = do
-          hasSentFinished <- liftEffect $ Ref.read hasSentFinishedVar
+          hasSentFinished <- liftEffect (Ref.read hasSentFinishedVar)
           case hasSentFinished of
             HasSentFinished -> do
               onSuccess topic
@@ -524,8 +546,27 @@ simpleTest :: forall s s' m stM
            => MonadEffect m
            => Show s
            => Generic s s'
-           => SymbioteT s m Unit -> m Unit
-simpleTest suite = do
+           => SymbioteT s m Unit
+           -> m Unit
+simpleTest = simpleTest'
+  (const (pure unit))
+  (liftEffect <<< defaultFailure)
+  (liftEffect <<< defaultFailure)
+  nullProgress
+
+simpleTest' :: forall s s' m stM
+             . MonadBaseControl Aff m stM
+            => MonadAff m
+            => MonadEffect m
+            => Show s
+            => Generic s s'
+            => (Topic -> m Unit) -- ^ report topic success
+            -> (Failure Second s -> m Unit) -- ^ report topic failure
+            -> (Failure First s -> m Unit) -- ^ report topic failure
+            -> (Topic -> Number -> m Unit) -- ^ report topic progress
+            -> SymbioteT s m Unit
+            -> m Unit
+simpleTest' onSuccess onFailureSecond onFailureFirst onProgress suite = do
   firstChan <- liftEffect Queue.new
   secondChan <- liftEffect Queue.new
 
@@ -533,12 +574,12 @@ simpleTest suite = do
     void $ runInBase $ firstPeer
       (encodeAndSendChan firstChan)
       (receiveAndDecodeChan secondChan)
-      (const (pure unit)) (liftEffect <<< defaultFailure) (\a b -> liftEffect $ nullProgress a b)
+      onSuccess onFailureSecond onProgress
       suite
   secondPeer
     (encodeAndSendChan secondChan)
     (receiveAndDecodeChan firstChan)
-    (const (pure unit)) (liftEffect <<< defaultFailure) (\a b -> liftEffect $ nullProgress a b)
+    onSuccess onFailureFirst onProgress
     suite
   liftAff (joinFiber t)
   where

@@ -18,18 +18,24 @@ derive newtype instance arbitraryToArgonaut :: Arbitrary a => Arbitrary (ToArgon
 derive newtype instance eqToArgonaut :: Eq a => Eq (ToArgonaut a)
 derive newtype instance showToArgonaut :: Show a => Show (ToArgonaut a)
 
-instance symbioteOperationToArgonaut :: SymbioteOperation a op => SymbioteOperation (ToArgonaut a) (ToArgonaut op) where
+instance symbioteOperationToArgonaut :: SymbioteOperation a o op => SymbioteOperation (ToArgonaut a) (ToArgonaut o) (ToArgonaut op) where
   perform (ToArgonaut x) (ToArgonaut y) = ToArgonaut (perform x y)
 
 instance symbioteToArgonaut ::
-  ( SymbioteOperation (ToArgonaut a) (ToArgonaut op)
+  ( SymbioteOperation (ToArgonaut a) (ToArgonaut o) (ToArgonaut op)
   , Json.EncodeJson a
+  , Json.EncodeJson o
   , Json.EncodeJson op
   , Json.DecodeJson a
+  , Json.DecodeJson o
   , Json.DecodeJson op
-  ) => Symbiote (ToArgonaut a) (ToArgonaut op) ShowJson where
+  ) => Symbiote (ToArgonaut a) (ToArgonaut o) (ToArgonaut op) ShowJson where
   encode (ToArgonaut x) = ShowJson (Json.encodeJson x)
   decode (ShowJson x) = case Json.decodeJson x of
+    Left _ -> Nothing
+    Right y -> Just (ToArgonaut y)
+  encodeOut _ (ToArgonaut x) = ShowJson (Json.encodeJson x)
+  decodeOut _ (ShowJson x) = case Json.decodeJson x of
     Left _ -> Nothing
     Right y -> Just (ToArgonaut y)
   encodeOp (ToArgonaut x) = ShowJson (Json.encodeJson x)
