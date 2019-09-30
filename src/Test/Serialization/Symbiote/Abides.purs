@@ -11,10 +11,13 @@ module Test.Serialization.Symbiote.Abides where
 import Prelude
 import Data.Argonaut
   ( class EncodeJson, class DecodeJson, encodeJson, decodeJson, (~>), (:=), jsonEmptyObject, (.:))
-import Data.ArrayBuffer.Class (class EncodeArrayBuffer, class DecodeArrayBuffer, putArrayBuffer, readArrayBuffer)
+import Data.ArrayBuffer.Class
+  ( class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength
+  , putArrayBuffer, readArrayBuffer, byteLength)
 import Data.ArrayBuffer.Class.Types (Uint8 (..))
 import Data.UInt (fromInt, toInt)
 import Data.Either (Either (Left))
+import Data.Maybe (Maybe (..))
 import Data.NonEmpty (NonEmpty (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
@@ -45,6 +48,7 @@ derive newtype instance encodeJsonAbidesSemigroup :: EncodeJson a => EncodeJson 
 derive newtype instance decodeJsonAbidesSemigroup :: DecodeJson a => DecodeJson (AbidesSemigroup a)
 derive newtype instance encodeArrayBufferAbidesSemigroup :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesSemigroup a)
 derive newtype instance decodeArrayBufferAbidesSemigroup :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesSemigroup a)
+derive newtype instance dynamicByteLengthAbidesSemigroup :: DynamicByteLength a => DynamicByteLength (AbidesSemigroup a)
 
 newtype AbidesMonoid a = AbidesMonoid a
 derive instance genericAbidesMonoid :: Generic a a' => Generic (AbidesMonoid a) _
@@ -57,6 +61,7 @@ derive newtype instance encodeJsonAbidesMonoid :: EncodeJson a => EncodeJson (Ab
 derive newtype instance decodeJsonAbidesMonoid :: DecodeJson a => DecodeJson (AbidesMonoid a)
 derive newtype instance encodeArrayBufferAbidesMonoid :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesMonoid a)
 derive newtype instance decodeArrayBufferAbidesMonoid :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesMonoid a)
+derive newtype instance dynamicByteLengthAbidesMonoid :: DynamicByteLength a => DynamicByteLength (AbidesMonoid a)
 
 newtype AbidesEq a = AbidesEq a
 derive instance genericAbidesEq :: Generic a a' => Generic (AbidesEq a) _
@@ -67,6 +72,7 @@ derive newtype instance encodeJsonAbidesEq :: EncodeJson a => EncodeJson (Abides
 derive newtype instance decodeJsonAbidesEq :: DecodeJson a => DecodeJson (AbidesEq a)
 derive newtype instance encodeArrayBufferAbidesEq :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEq a)
 derive newtype instance decodeArrayBufferAbidesEq :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesEq a)
+derive newtype instance dynamicByteLengthAbidesEq :: DynamicByteLength a => DynamicByteLength (AbidesEq a)
 
 newtype AbidesOrd a = AbidesOrd a
 derive instance genericAbidesOrd :: Generic a a' => Generic (AbidesOrd a) _
@@ -78,6 +84,7 @@ derive newtype instance encodeJsonAbidesOrd :: EncodeJson a => EncodeJson (Abide
 derive newtype instance decodeJsonAbidesOrd :: DecodeJson a => DecodeJson (AbidesOrd a)
 derive newtype instance encodeArrayBufferAbidesOrd :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesOrd a)
 derive newtype instance decodeArrayBufferAbidesOrd :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesOrd a)
+derive newtype instance dynamicByteLengthAbidesOrd :: DynamicByteLength a => DynamicByteLength (AbidesOrd a)
 
 newtype AbidesEnum a = AbidesEnum a
 derive instance genericAbidesEnum :: Generic a a' => Generic (AbidesEnum a) _
@@ -92,6 +99,7 @@ derive newtype instance encodeJsonAbidesEnum :: EncodeJson a => EncodeJson (Abid
 derive newtype instance decodeJsonAbidesEnum :: DecodeJson a => DecodeJson (AbidesEnum a)
 derive newtype instance encodeArrayBufferAbidesEnum :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEnum a)
 derive newtype instance decodeArrayBufferAbidesEnum :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesEnum a)
+derive newtype instance dynamicByteLengthAbidesEnum :: DynamicByteLength a => DynamicByteLength (AbidesEnum a)
 
 newtype AbidesSemiring a = AbidesSemiring a
 derive instance genericAbidesSemiring :: Generic a a' => Generic (AbidesSemiring a) _
@@ -103,6 +111,7 @@ derive newtype instance encodeJsonAbidesSemiring :: EncodeJson a => EncodeJson (
 derive newtype instance decodeJsonAbidesSemiring :: DecodeJson a => DecodeJson (AbidesSemiring a)
 derive newtype instance encodeArrayBufferAbidesSemiring :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesSemiring a)
 derive newtype instance decodeArrayBufferAbidesSemiring :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesSemiring a)
+derive newtype instance dynamicByteLengthAbidesSemiring :: DynamicByteLength a => DynamicByteLength (AbidesSemiring a)
 
 newtype AbidesRing a = AbidesRing a
 derive instance genericAbidesRing :: Generic a a' => Generic (AbidesRing a) _
@@ -115,6 +124,7 @@ derive newtype instance encodeJsonAbidesRing :: EncodeJson a => EncodeJson (Abid
 derive newtype instance decodeJsonAbidesRing :: DecodeJson a => DecodeJson (AbidesRing a)
 derive newtype instance encodeArrayBufferAbidesRing :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesRing a)
 derive newtype instance decodeArrayBufferAbidesRing :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesRing a)
+derive newtype instance dynamicByteLengthAbidesRing :: DynamicByteLength a => DynamicByteLength (AbidesRing a)
 
 newtype AbidesCommutativeRing a = AbidesCommutativeRing a
 derive instance genericAbidesCommutativeRing :: Generic a a' => Generic (AbidesCommutativeRing a) _
@@ -128,6 +138,7 @@ derive newtype instance encodeJsonAbidesCommutativeRing :: EncodeJson a => Encod
 derive newtype instance decodeJsonAbidesCommutativeRing :: DecodeJson a => DecodeJson (AbidesCommutativeRing a)
 derive newtype instance encodeArrayBufferAbidesCommutativeRing :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesCommutativeRing a)
 derive newtype instance decodeArrayBufferAbidesCommutativeRing :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesCommutativeRing a)
+derive newtype instance dynamicByteLengthAbidesCommutativeRing :: DynamicByteLength a => DynamicByteLength (AbidesCommutativeRing a)
 
 newtype AbidesDivisionRing a = AbidesDivisionRing a
 derive instance genericAbidesDivisionRing :: Generic a a' => Generic (AbidesDivisionRing a) _
@@ -141,6 +152,7 @@ derive newtype instance encodeJsonAbidesDivisionRing :: EncodeJson a => EncodeJs
 derive newtype instance decodeJsonAbidesDivisionRing :: DecodeJson a => DecodeJson (AbidesDivisionRing a)
 derive newtype instance encodeArrayBufferAbidesDivisionRing :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesDivisionRing a)
 derive newtype instance decodeArrayBufferAbidesDivisionRing :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesDivisionRing a)
+derive newtype instance dynamicByteLengthAbidesDivisionRing :: DynamicByteLength a => DynamicByteLength (AbidesDivisionRing a)
 
 newtype AbidesEuclideanRing a = AbidesEuclideanRing a
 derive instance genericAbidesEuclideanRing :: Generic a a' => Generic (AbidesEuclideanRing a) _
@@ -155,6 +167,7 @@ derive newtype instance encodeJsonAbidesEuclideanRing :: EncodeJson a => EncodeJ
 derive newtype instance decodeJsonAbidesEuclideanRing :: DecodeJson a => DecodeJson (AbidesEuclideanRing a)
 derive newtype instance encodeArrayBufferAbidesEuclideanRing :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEuclideanRing a)
 derive newtype instance decodeArrayBufferAbidesEuclideanRing :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesEuclideanRing a)
+derive newtype instance dynamicByteLengthAbidesEuclideanRing :: DynamicByteLength a => DynamicByteLength (AbidesEuclideanRing a)
 
 newtype AbidesField a = AbidesField a
 derive instance genericAbidesField :: Generic a a' => Generic (AbidesField a) _
@@ -170,6 +183,7 @@ derive newtype instance encodeJsonAbidesField :: EncodeJson a => EncodeJson (Abi
 derive newtype instance decodeJsonAbidesField :: DecodeJson a => DecodeJson (AbidesField a)
 derive newtype instance encodeArrayBufferAbidesField :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesField a)
 derive newtype instance decodeArrayBufferAbidesField :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesField a)
+derive newtype instance dynamicByteLengthAbidesField :: DynamicByteLength a => DynamicByteLength (AbidesField a)
 
 
 
@@ -194,10 +208,31 @@ instance decodeJsonAbidesSemigroupOperation :: DecodeJson a => DecodeJson (Abide
     o <- decodeJson json
     o' <- o .: "associative"
     SemigroupAssociative <$> o' .: "y" <*> o' .: "z"
--- instance Serialize a => Serialize (AbidesSemigroupOperation a) where
---   put op = case op of
---     SemigroupAssociative y z -> put y *> put z
---   get = SemigroupAssociative <$> get <*> get
+instance dynamicByteLengthAbidesSemigroupOperation :: DynamicByteLength a => DynamicByteLength (AbidesSemigroupOperation a) where
+  byteLength op = case op of
+    SemigroupAssociative y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+instance encodeArrayBufferAbidesSemigroupOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesSemigroupOperation a) where
+  putArrayBuffer b o op = case op of
+    SemigroupAssociative y z -> do
+      mL <- putArrayBuffer b o y
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) z
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferAbidesSemigroupOperation :: (DecodeArrayBuffer a, DynamicByteLength a) => DecodeArrayBuffer (AbidesSemigroupOperation a) where
+  readArrayBuffer b o = do
+    mX <- readArrayBuffer b o
+    case mX of
+      Nothing -> pure Nothing
+      Just x -> do
+        l <- byteLength x
+        mY <- readArrayBuffer b (o + l)
+        case mY of
+          Nothing -> pure Nothing
+          Just y -> pure (Just (SemigroupAssociative x y))
 
 instance symbioteOperationsAbideMonoid ::
   (Monoid a, Eq a) => SymbioteOperation (AbidesMonoid a) Boolean (AbidesMonoidOperation a) where
@@ -235,18 +270,38 @@ instance decodeJsonAbidesMonoidOperation :: DecodeJson a => DecodeJson (AbidesMo
           _ | s == "leftIdentity" -> pure MonoidLeftIdentity
             | s == "rightIdentity" -> pure MonoidRightIdentity
             | otherwise -> Left "AbidesMonoidOperation a"
--- instance Serialize a => Serialize (AbidesMonoidOperation a) where
---   put op = case op of
---     MonoidSemigroup op' -> putWord8 0 *> put op'
---     MonoidLeftIdentity -> putWord8 1
---     MonoidRightIdentity -> putWord8 2
---   get = do
---     x <- getWord8
---     case x of
---       0 -> MonoidSemigroup <$> get
---       1 -> pure MonoidLeftIdentity
---       2 -> pure MonoidRightIdentity
---       _ -> fail "AbidesMonoidOperation a"
+instance dynamicByteLengthMonoidOperation :: DynamicByteLength a => DynamicByteLength (AbidesMonoidOperation a) where
+  byteLength op = case op of
+    MonoidSemigroup op' -> (\l -> l + 1) <$> byteLength op'
+    MonoidLeftIdentity -> pure 1
+    MonoidRightIdentity -> pure 1
+instance encodeArrayBufferMonoidOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesMonoidOperation a) where
+  putArrayBuffer b o op = case op of
+    MonoidSemigroup op' -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) op'
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    MonoidLeftIdentity -> putArrayBuffer b o (Uint8 (fromInt 1))
+    MonoidRightIdentity -> putArrayBuffer b o (Uint8 (fromInt 2))
+instance decodeArrayBufferMonoidOperation :: (DecodeArrayBuffer a, DynamicByteLength a) => DecodeArrayBuffer (AbidesMonoidOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mOp <- readArrayBuffer b (o + 1)
+          case mOp of
+            Nothing -> pure Nothing
+            Just op -> pure (Just (MonoidSemigroup op))
+        | i == fromInt 1 -> pure (Just MonoidLeftIdentity)
+        | i == fromInt 2 -> pure (Just MonoidRightIdentity)
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesEq :: (Eq a) => SymbioteOperation (AbidesEq a) Boolean (AbidesEqOperation a) where
   perform op x = case op of
@@ -291,20 +346,74 @@ instance decodeJsonAbidesEqOperation :: DecodeJson a => DecodeJson (AbidesEqOper
         case s of
           _ | s == "reflexive" -> pure EqReflexive
             | otherwise -> Left "AbidesEqOperation a"
--- instance Serialize a => Serialize (AbidesEqOperation a) where
---   put op = case op of
---     EqSymmetry y -> putWord8 0 *> put y
---     EqReflexive -> putWord8 1
---     EqTransitive y z -> putWord8 2 *> put y *> put z
---     EqNegation y -> putWord8 3 *> put y
---   get = do
---     x <- getWord8
---     case x of
---       0 -> EqSymmetry <$> get
---       1 -> pure EqReflexive
---       2 -> EqTransitive <$> get <*> get
---       3 -> EqNegation <$> get
---       _ -> fail "Operation (AbidesEq a)"
+instance dynamicByteLengthAbidesEqOperation :: DynamicByteLength a => DynamicByteLength (AbidesEqOperation a) where
+  byteLength op = case op of
+    EqSymmetry y -> (\l -> l + 1) <$> byteLength y
+    EqReflexive -> pure 1
+    EqTransitive y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
+    EqNegation y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferAbidesEqOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEqOperation a) where
+  putArrayBuffer b o op = case op of
+    EqSymmetry y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    EqReflexive -> putArrayBuffer b o (Uint8 (fromInt 1))
+    EqTransitive y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    EqNegation y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 3))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferAbidesEqOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesEqOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> pure (Just (EqSymmetry x))
+        | i == fromInt 1 -> pure (Just EqReflexive)
+        | i == fromInt 2 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (EqTransitive x y))
+        | i == fromInt 3 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> pure (Just (EqNegation x))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesOrd :: (Ord a) => SymbioteOperation (AbidesOrd a) Boolean (AbidesOrdOperation a) where
   perform op x = case op of
@@ -344,18 +453,59 @@ instance decodeJsonAbidesOrdOperation :: DecodeJson a => DecodeJson (AbidesOrdOp
         case s of
           _ | s == "reflexive" -> pure OrdReflexive
             | otherwise -> Left "AbidesOrdOperation a"
--- instance Serialize a => Serialize (AbidesOrdOperation a) where
---   put op = case op of
---     OrdReflexive -> putWord8 0
---     OrdAntiSymmetry y -> putWord8 1 *> put y
---     OrdTransitive y z -> putWord8 2 *> put y *> put z
---   get = do
---     x <- getWord8
---     case x of
---       0 -> pure OrdReflexive
---       1 -> OrdAntiSymmetry <$> get
---       2 -> OrdTransitive <$> get <*> get
---       _ -> fail "Operation (AbidesOrd a)"
+instance dynamicByteLengthAbidesOrdOperation :: DynamicByteLength a => DynamicByteLength (AbidesOrdOperation a) where
+  byteLength op = case op of
+    OrdAntiSymmetry y -> (\l -> l + 1) <$> byteLength y
+    OrdReflexive -> pure 1
+    OrdTransitive y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
+instance encodeArrayBufferAbidesOrdOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesOrdOperation a) where
+  putArrayBuffer b o op = case op of
+    OrdReflexive -> putArrayBuffer b o (Uint8 (fromInt 0))
+    OrdAntiSymmetry y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    OrdTransitive y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+instance decodeArrayBufferAbidesOrdOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesOrdOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> pure (Just OrdReflexive)
+        | i == fromInt 1 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> pure (Just (OrdAntiSymmetry x))
+        | i == fromInt 2 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (OrdTransitive x y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesEnum :: (BoundedEnum a, Ord a) => SymbioteOperation (AbidesEnum a) Boolean (AbidesEnumOperation a) where
   perform op x = case op of
@@ -392,18 +542,38 @@ instance decodeJsonAbidesEnumOperation :: DecodeJson a => DecodeJson (AbidesEnum
           _ | s == "predsucc" -> pure EnumPredSucc
             | s == "succpred" -> pure EnumSuccPred
             | otherwise -> Left "AbidesEnumOperation a"
--- instance Serialize a => Serialize (AbidesEnumOperation a) where
---   put op = case op of
---     EnumCompareHom y -> putWord8 0 *> put y
---     EnumPredSucc -> putWord8 1
---     EnumSuccPred -> putWord8 2
---   get = do
---     x <- getWord8
---     case x of
---       0 -> EnumCompareHom <$> get
---       1 -> pure EnumPredSucc
---       2 -> pure EnumSuccPred
---       _ -> fail "Operation (AbidesEnum a)"
+instance dynamicByteLengthAbidesEnumOperation :: DynamicByteLength a => DynamicByteLength (AbidesEnumOperation a) where
+  byteLength op = case op of
+    EnumCompareHom y -> (\l -> l + 1) <$> byteLength y
+    EnumPredSucc -> pure 1
+    EnumSuccPred -> pure 1
+instance encodeArrayBufferAbidesEnumOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEnumOperation a) where
+  putArrayBuffer b o op = case op of
+    EnumCompareHom y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    EnumPredSucc -> putArrayBuffer b o (Uint8 (fromInt 1))
+    EnumSuccPred -> putArrayBuffer b o (Uint8 (fromInt 2))
+instance decodeArrayBufferAbidesEnumOperation :: DecodeArrayBuffer a => DecodeArrayBuffer (AbidesEnumOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> pure (Just (EnumCompareHom x))
+        | i == fromInt 1 -> pure (Just EnumPredSucc)
+        | i == fromInt 2 -> pure (Just EnumSuccPred)
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesSemiring :: (Semiring a, Eq a) => SymbioteOperation (AbidesSemiring a) Boolean (AbidesSemiringOperation a) where
   perform op x = case op of
@@ -459,6 +629,116 @@ instance decodeJsonAbidesSemiringOperation :: DecodeJson a => DecodeJson (Abides
         case s of
           _ | s == "annihilation" -> pure SemiringAnnihilation
             | otherwise -> Left "AbidesSemiringOperation a"
+instance dynamicByteLengthAbidesSemiringOperation :: DynamicByteLength a => DynamicByteLength (AbidesSemiringOperation a) where
+  byteLength op = case op of
+    SemiringCommutativeMonoid y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+    SemiringMonoid y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+    SemiringLeftDistributive y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+    SemiringRightDistributive y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+    SemiringAnnihilation -> pure 1
+instance encodeArrayBufferAbidesSemiringOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesSemiringOperation a) where
+  putArrayBuffer b o op = case op of
+    SemiringCommutativeMonoid y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    SemiringMonoid y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    SemiringLeftDistributive y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    SemiringRightDistributive y z -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 3))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') z
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    SemiringAnnihilation -> putArrayBuffer b o (Uint8 (fromInt 4))
+instance decodeArrayBufferAbidesSemiringOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesSemiringOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (SemiringCommutativeMonoid x y))
+        | i == fromInt 1 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (SemiringMonoid x y))
+        | i == fromInt 2 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (SemiringLeftDistributive x y))
+        | i == fromInt 3 -> do
+          mX <- readArrayBuffer b (o + 1)
+          case mX of
+            Nothing -> pure Nothing
+            Just x -> do
+              l <- byteLength x
+              mY <- readArrayBuffer b (o + 1 + l)
+              case mY of
+                Nothing -> pure Nothing
+                Just y -> pure (Just (SemiringRightDistributive x y))
+        | i == fromInt 4 -> pure (Just SemiringAnnihilation)
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 -- instance Serialize a => Serialize (AbidesSemiringOperation a) where
 --   put op = case op of
 --     SemiringCommutativeMonoid y z -> putWord8 0 *> put y *> put z
