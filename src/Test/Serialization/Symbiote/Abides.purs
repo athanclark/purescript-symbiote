@@ -739,22 +739,6 @@ instance decodeArrayBufferAbidesSemiringOperation :: (DynamicByteLength a, Decod
         | i == fromInt 4 -> pure (Just SemiringAnnihilation)
         | otherwise -> pure Nothing
       Nothing -> pure Nothing
--- instance Serialize a => Serialize (AbidesSemiringOperation a) where
---   put op = case op of
---     SemiringCommutativeMonoid y z -> putWord8 0 *> put y *> put z
---     SemiringMonoid y z -> putWord8 1 *> put y *> put z
---     SemiringLeftDistributive y z -> putWord8 2 *> put y *> put z
---     SemiringRightDistributive y z -> putWord8 3 *> put y *> put z
---     SemiringAnnihilation -> putWord8 4
---   get = do
---     x <- getWord8
---     case x of
---       0 -> SemiringCommutativeMonoid <$> get <*> get
---       1 -> SemiringMonoid <$> get <*> get
---       2 -> SemiringLeftDistributive <$> get <*> get
---       3 -> SemiringRightDistributive <$> get <*> get
---       4 -> pure SemiringAnnihilation
---       _ -> fail "Operation (AbidesSemiring a)"
 
 instance symbioteOperationAbidesRing :: (Ring a, Eq a) => SymbioteOperation (AbidesRing a) Boolean (AbidesRingOperation a) where
   perform op x@(AbidesRing x') = case op of
@@ -786,16 +770,35 @@ instance decodeJsonAbidesRingOperation :: DecodeJson a => DecodeJson (AbidesRing
         case s of
           _ | s == "additiveInverse" -> pure RingAdditiveInverse
             | otherwise -> Left "AbidesRingOperation a"
--- instance Serialize a => Serialize (AbidesRingOperation a) where
---   put op = case op of
---     RingSemiring op' -> putWord8 0 *> put op'
---     RingAdditiveInverse -> putWord8 1
---   get = do
---     x <- getWord8
---     case x of
---       0 -> RingSemiring <$> get
---       1 -> pure RingAdditiveInverse
---       _ -> fail "AbidesRingOperation a"
+instance dynamicByteLengthAbidesRingOperation :: DynamicByteLength a => DynamicByteLength (AbidesRingOperation a) where
+  byteLength op = case op of
+    RingSemiring op' -> (\l -> l + 1) <$> byteLength op'
+    RingAdditiveInverse -> pure 1
+instance encodeArrayBufferAbidesRingOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesRingOperation a) where
+  putArrayBuffer b o op = case op of
+    RingSemiring op' -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) op'
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    RingAdditiveInverse -> putArrayBuffer b o (Uint8 (fromInt 1))
+instance decodeArrayBufferAbidesRingOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesRingOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mOp <- readArrayBuffer b (o + 1)
+          case mOp of
+            Nothing -> pure Nothing
+            Just op -> pure (Just (RingSemiring op))
+        | i == fromInt 1 -> pure (Just RingAdditiveInverse)
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationCommutativeRing :: (CommutativeRing a, Eq a) => SymbioteOperation (AbidesCommutativeRing a) Boolean (AbidesCommutativeRingOperation a) where
   perform op x@(AbidesCommutativeRing x') = case op of
@@ -822,16 +825,47 @@ instance decodeJsonAbidesCommutativeRingOperation :: DecodeJson a => DecodeJson 
     let ring = CommutativeRingRing <$> o .: "ring"
         commutative = CommutativeRingCommutative <$> o .: "commutative"
     ring <|> commutative
--- instance Serialize a => Serialize (AbidesCommutativeRingOperation a) where
---   put op = case op of
---     CommutativeRingRing op' -> putWord8 0 *> put op'
---     CommutativeRingCommutative y -> putWord8 1 *> put y
---   get = do
---     x <- getWord8
---     case x of
---       0 -> CommutativeRingRing <$> get
---       1 -> CommutativeRingCommutative <$> get
---       _ -> fail "AbidesCommutativeRingOperation a"
+instance dynamicByteLengthAbidesCommutativeRingOperation :: DynamicByteLength a => DynamicByteLength (AbidesCommutativeRingOperation a) where
+  byteLength op = case op of
+    CommutativeRingRing op' -> (\l -> l + 1) <$> byteLength op'
+    CommutativeRingCommutative y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferAbidesCommutativeRingOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesCommutativeRingOperation a) where
+  putArrayBuffer b o op = case op of
+    CommutativeRingRing op' -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) op'
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    CommutativeRingCommutative y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferAbidesCommutativeRingOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesCommutativeRingOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mOp <- readArrayBuffer b (o + 1)
+          case mOp of
+            Nothing -> pure Nothing
+            Just op -> pure (Just (CommutativeRingRing op))
+        | i == fromInt 1 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (CommutativeRingCommutative y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesDivisionRing :: (DivisionRing a, Eq a) => SymbioteOperation (AbidesDivisionRing a) Boolean (AbidesDivisionRingOperation a) where
   perform op x@(AbidesDivisionRing x') = case op of
@@ -863,16 +897,35 @@ instance decodeJsonAbidesDivisionRingOperation :: DecodeJson a => DecodeJson (Ab
         case s of
           _ | s == "inverse" -> pure DivisionRingInverse
             | otherwise -> Left "AbidesDivisionRingOperation a"
--- instance Serialize a => Serialize (AbidesDivisionRingOperation a) where
---   put op = case op of
---     DivisionRingRing op' -> putWord8 0 *> put op'
---     DivisionRingInverse -> putWord8 1
---   get = do
---     x <- getWord8
---     case x of
---       0 -> DivisionRingRing <$> get
---       1 -> pure DivisionRingInverse
---       _ -> fail "AbidesDivisionRingOperation a"
+instance dynamicByteLengthAbidesDivisionRingOperation :: DynamicByteLength a => DynamicByteLength (AbidesDivisionRingOperation a) where
+  byteLength op = case op of
+    DivisionRingRing op' -> (\l -> l + 1) <$> byteLength op'
+    DivisionRingInverse -> pure 1
+instance encodeArrayBufferAbidesDivisionRingOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesDivisionRingOperation a) where
+  putArrayBuffer b o op = case op of
+    DivisionRingRing op' -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) op'
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    DivisionRingInverse -> putArrayBuffer b o (Uint8 (fromInt 1))
+instance decodeArrayBufferAbidesDivisionRingOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesDivisionRingOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mOp <- readArrayBuffer b (o + 1)
+          case mOp of
+            Nothing -> pure Nothing
+            Just op -> pure (Just (DivisionRingRing op))
+        | i == fromInt 1 -> pure (Just DivisionRingInverse)
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesEuclideanRing :: (EuclideanRing a, Eq a) => SymbioteOperation (AbidesEuclideanRing a) Boolean (AbidesEuclideanRingOperation a) where
   perform op x@(AbidesEuclideanRing x') = case op of
@@ -899,16 +952,47 @@ instance decodeJsonAbidesEuclideanRingOperation :: DecodeJson a => DecodeJson (A
     let commutativeRing = EuclideanRingCommutativeRing <$> o .: "commutativeRing"
         integralDomain = EuclideanRingIntegralDomain <$> o .: "integralDomain"
     commutativeRing <|> integralDomain
--- instance Serialize a => Serialize (AbidesEuclideanRingOperation a) where
---   put op = case op of
---     EuclideanRingCommutativeRing op' -> putWord8 0 *> put op'
---     EuclideanRingIntegralDomain y -> putWord8 1 *> put y
---   get = do
---     x <- getWord8
---     case x of
---       0 -> EuclideanRingCommutativeRing <$> get
---       1 -> EuclideanRingIntegralDomain <$> get
---       _ -> fail "AbidesEuclideanRingOperation a"
+instance dynamicByteLengthAbidesEuclideanRingOperation :: DynamicByteLength a => DynamicByteLength (AbidesEuclideanRingOperation a) where
+  byteLength op = case op of
+    EuclideanRingCommutativeRing y -> (\l -> l + 1) <$> byteLength y
+    EuclideanRingIntegralDomain y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferAbidesEuclideanRingOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesEuclideanRingOperation a) where
+  putArrayBuffer b o op = case op of
+    EuclideanRingCommutativeRing y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    EuclideanRingIntegralDomain y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferAbidesEuclideanRingOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesEuclideanRingOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (EuclideanRingCommutativeRing y))
+        | i == fromInt 1 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (EuclideanRingIntegralDomain y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 instance symbioteOperationAbidesField :: (Field a, Eq a) => SymbioteOperation (AbidesField a) Boolean (AbidesFieldOperation a) where
   perform op (AbidesField x') = case op of
@@ -935,13 +1019,44 @@ instance decodeJsonAbidesFieldOperation :: DecodeJson a => DecodeJson (AbidesFie
     let divisionRing = FieldDivisionRing <$> o .: "divisionRing"
         euclideanRing = FieldEuclideanRing <$> o .: "euclideanRing"
     divisionRing <|> euclideanRing
--- instance Serialize a => Serialize (AbidesFieldOperation a) where
---   put op = case op of
---     FieldDivisionRing op' -> putWord8 0 *> put op'
---     FieldEuclideanRing y -> putWord8 1 *> put y
---   get = do
---     x <- getWord8
---     case x of
---       0 -> FieldDivisionRing <$> get
---       1 -> FieldEuclideanRing <$> get
---       _ -> fail "AbidesFieldOperation a"
+instance dynamicByteLengthAbidesFieldOperation :: DynamicByteLength a => DynamicByteLength (AbidesFieldOperation a) where
+  byteLength op = case op of
+    FieldDivisionRing y -> (\l -> l + 1) <$> byteLength y
+    FieldEuclideanRing y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferAbidesFieldOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesFieldOperation a) where
+  putArrayBuffer b o op = case op of
+    FieldDivisionRing y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    FieldEuclideanRing y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferAbidesFieldOperation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (AbidesFieldOperation a) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 i)
+        | i == fromInt 0 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (FieldDivisionRing y))
+        | i == fromInt 1 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (FieldEuclideanRing y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
