@@ -1,9 +1,12 @@
 module Test.Main where
 
 import Test.Serialization.Symbiote
-  (class SymbioteOperation, class Symbiote, Topic (..), register, SymbioteT, EitherOp, simpleTest)
+  ( class SymbioteOperation, class Symbiote, Topic (..), register
+  , perform, SymbioteT, SimpleSerialization, simpleTest)
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
+import Test.Serialization.Symbiote.Abides
+  (AbidesEuclideanRing (..), AbidesEuclideanRingOperation)
 
 import Prelude
 import Data.Generic.Rep (class Generic)
@@ -54,18 +57,18 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
       it "Number over various" (simpleTest numberSuite)
       it "Array over various" (simpleTest arraySuite)
       where
-        unitSuite :: SymbioteT (EitherOp Unit' Unit'Operation) Aff Unit
+        unitSuite :: SymbioteT (SimpleSerialization Unit' Unit' Unit'Operation) Aff Unit
         unitSuite = register (Topic "Unit") 100
-          (Proxy :: Proxy {value :: Unit', operation :: Unit'Operation})
-        intSuite :: SymbioteT (EitherOp Int' Int'Operation) Aff Unit
+          (Proxy :: Proxy {value :: Unit', output :: Unit', operation :: Unit'Operation})
+        intSuite :: SymbioteT (SimpleSerialization Int' Boolean Int'Operation) Aff Unit
         intSuite = register (Topic "Int") 100
-          (Proxy :: Proxy {value :: Int', operation :: Int'Operation})
-        numberSuite :: SymbioteT (EitherOp Number' Number'Operation) Aff Unit
+          (Proxy :: Proxy {value :: Int', output :: Boolean, operation :: Int'Operation})
+        numberSuite :: SymbioteT (SimpleSerialization Number' Number' Number'Operation) Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: Number', operation :: Number'Operation})
-        arraySuite :: SymbioteT (EitherOp (Array' Int') Array'Operation) Aff Unit
+          (Proxy :: Proxy {value :: Number', output :: Number', operation :: Number'Operation})
+        arraySuite :: SymbioteT (SimpleSerialization (Array' Int') (Array' Int') Array'Operation) Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: Array' Int', operation :: Array'Operation})
+          (Proxy :: Proxy {value :: Array' Int', output :: Array' Int', operation :: Array'Operation})
     arraybufferTests = describe "ArrayBuffer Tests" do
       it "Json over id" (simpleTest jsonSuite)
       it "Int over various" (simpleTest intSuite)
@@ -74,16 +77,16 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
       where
         jsonSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         jsonSuite = register (Topic "Json") 100
-          (Proxy :: Proxy {value :: Json', operation :: Json'Operation})
+          (Proxy :: Proxy {value :: Json', output :: Json', operation :: Json'Operation})
         intSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         intSuite = register (Topic "Int") 100
-          (Proxy :: Proxy {value :: ToArrayBuffer Int', operation :: ToArrayBuffer Int'Operation})
+          (Proxy :: Proxy {value :: ToArrayBuffer Int', output :: ToArrayBuffer Boolean, operation :: ToArrayBuffer Int'Operation})
         numberSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: ToArrayBuffer Number', operation :: ToArrayBuffer Number'Operation})
+          (Proxy :: Proxy {value :: ToArrayBuffer Number', output :: ToArrayBuffer Number', operation :: ToArrayBuffer Number'Operation})
         arraySuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), operation :: ToArrayBuffer Array'Operation})
+          (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), output :: ToArrayBuffer (Array' Int'), operation :: ToArrayBuffer Array'Operation})
     jsonTests = describe "Json Tests" do
       it "Int over various" (simpleTest intSuite)
       it "Number over various" (simpleTest numberSuite)
@@ -91,13 +94,13 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
       where
         intSuite :: SymbioteT ShowJson Aff Unit
         intSuite = register (Topic "Int") 100
-          (Proxy :: Proxy {value :: ToArgonaut Int', operation :: ToArgonaut Int'Operation})
+          (Proxy :: Proxy {value :: ToArgonaut Int', output :: ToArgonaut Boolean, operation :: ToArgonaut Int'Operation})
         numberSuite :: SymbioteT ShowJson Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: ToArgonaut Number', operation :: ToArgonaut Number'Operation})
+          (Proxy :: Proxy {value :: ToArgonaut Number', output :: ToArgonaut Number', operation :: ToArgonaut Number'Operation})
         arraySuite :: SymbioteT ShowJson Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), operation :: ToArgonaut Array'Operation})
+          (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), output :: ToArgonaut (Array' Int'), operation :: ToArgonaut Array'Operation})
 
 
 
@@ -129,7 +132,7 @@ instance decodeJsonUnit'Operation :: DecodeJson Unit'Operation where
   decodeJson x = do
     (_ :: Unit) <- decodeJson x
     pure IdUnit'
-instance symbioteOperationUnit' :: SymbioteOperation Unit' Unit'Operation where
+instance symbioteOperationUnit' :: SymbioteOperation Unit' Unit' Unit'Operation where
   perform IdUnit' x = x
 
 
@@ -137,6 +140,10 @@ newtype Int' = Int' Int
 derive instance genericInt' :: Generic Int' _
 derive newtype instance showInt' :: Show Int'
 derive newtype instance eqInt' :: Eq Int'
+derive newtype instance semiringInt' :: Semiring Int'
+derive newtype instance ringInt' :: Ring Int'
+derive newtype instance commutativeRingInt' :: CommutativeRing Int'
+derive newtype instance euclideanRingInt' :: EuclideanRing Int'
 derive newtype instance arbitraryInt' :: Arbitrary Int'
 derive newtype instance encodeJsonInt' :: EncodeJson Int'
 derive newtype instance decodeJsonInt' :: DecodeJson Int'
@@ -151,90 +158,34 @@ instance decodeArrayBufferInt' :: DecodeArrayBuffer Int' where
       Nothing -> pure Nothing
       Just (Int32BE x) -> pure (Just (Int' x))
 data Int'Operation
-  = AddInt Int
-  | DelInt Int
-  | DivInt Int
-  | MulInt Int
-  | ModInt Int
+  = IntEuclideanRing (AbidesEuclideanRingOperation Int')
 derive instance genericInt'Operation :: Generic Int'Operation _
 instance showInt'Operation :: Show Int'Operation where
   show = genericShow
 instance eqInt'Operation :: Eq Int'Operation where
   eq = genericEq
 instance arbitraryInt'Operation :: Arbitrary Int'Operation where
-  arbitrary = oneOf $ NonEmpty (AddInt <$> arbitrary)
-    [ DelInt <$> arbitrary
-    , DivInt <$> arbitrary
-    , MulInt <$> arbitrary
-    , ModInt <$> arbitrary
-    ]
+  arbitrary = IntEuclideanRing <$> arbitrary
 instance encodeJsonInt'Operation :: EncodeJson Int'Operation where
   encodeJson x = case x of
-    AddInt y -> encodeJson {add: y}
-    DelInt y -> encodeJson {del: y}
-    DivInt y -> encodeJson {div: y}
-    MulInt y -> encodeJson {mul: y}
-    ModInt y -> encodeJson {mod: y}
+    IntEuclideanRing y -> encodeJson y
 instance decodeJsonInt'Operation :: DecodeJson Int'Operation where
-  decodeJson x = tryAdd <|> tryDel <|> tryDiv <|> tryMul <|> tryMod
-    where
-      tryAdd = do
-        ({add} :: {add :: Int}) <- decodeJson x
-        pure (AddInt add)
-      tryDel = do
-        ({del} :: {del :: Int}) <- decodeJson x
-        pure (DelInt del)
-      tryDiv = do
-        ({div} :: {div :: Int}) <- decodeJson x
-        pure (DivInt div)
-      tryMul = do
-        ({mul} :: {mul :: Int}) <- decodeJson x
-        pure (MulInt mul)
-      tryMod = do
-        ({mod} :: {mod :: Int}) <- decodeJson x
-        pure (ModInt mod)
+  decodeJson json = IntEuclideanRing <$> decodeJson json
 instance dynamicByteLengthInt'Operation :: DynamicByteLength Int'Operation where
-  byteLength x = case x of
-    AddInt y -> (_ + 1) <$> byteLength (Int32BE y)
-    DelInt y -> (_ + 1) <$> byteLength (Int32BE y)
-    DivInt y -> (_ + 1) <$> byteLength (Int32BE y)
-    MulInt y -> (_ + 1) <$> byteLength (Int32BE y)
-    ModInt y -> (_ + 1) <$> byteLength (Int32BE y)
+  byteLength op = case op of
+    IntEuclideanRing y -> byteLength y
 instance encodeArrayBufferInt'Operation :: EncodeArrayBuffer Int'Operation where
   putArrayBuffer b o op = case op of
-    AddInt x -> putArrayBuffer b o (Int8 0) >>= cont x
-    DelInt x -> putArrayBuffer b o (Int8 1) >>= cont x
-    DivInt x -> putArrayBuffer b o (Int8 2) >>= cont x
-    MulInt x -> putArrayBuffer b o (Int8 3) >>= cont x
-    ModInt x -> putArrayBuffer b o (Int8 4) >>= cont x
-    where
-      cont x ml =
-        case ml of
-          Nothing -> pure Nothing
-          Just l -> (map (_ + 1)) <$> putArrayBuffer b (o + l) (Int32BE x)
+    IntEuclideanRing y -> putArrayBuffer b o y
 instance decodeArrayBufferInt'Operation :: DecodeArrayBuffer Int'Operation where
   readArrayBuffer b o = do
-    mopcode <- readArrayBuffer b o
-    case mopcode of
+    mX <- readArrayBuffer b o
+    case mX of
       Nothing -> pure Nothing
-      Just (Int8 opcode) -> do
-        mX <- readArrayBuffer b (o + 1)
-        case mX of
-          Nothing -> pure Nothing
-          Just (Int32BE x) -> pure $ case opcode of
-            0 -> Just $ AddInt x
-            1 -> Just $ DelInt x
-            2 -> Just $ DivInt x
-            3 -> Just $ MulInt x
-            4 -> Just $ ModInt x
-            _ -> Nothing
-instance symbioteOperationInt' :: SymbioteOperation Int' Int'Operation where
-  perform op (Int' x) = case op of
-    AddInt y -> Int' (x + y)
-    DelInt y -> Int' (x - y)
-    DivInt y -> Int' $ if y == 0 then 0 else x `div` y
-    MulInt y -> Int' (x * y)
-    ModInt y -> Int' $ if y == 0 then 0 else x `mod` y
+      Just x -> pure (Just (IntEuclideanRing x))
+instance symbioteOperationInt' :: SymbioteOperation Int' Boolean Int'Operation where
+  perform op x = case op of
+    IntEuclideanRing op' -> perform op' (AbidesEuclideanRing x)
 
 
 newtype Number' = Number' Number
@@ -335,7 +286,7 @@ instance decodeArrayBufferNumber'Operation :: DecodeArrayBuffer Number'Operation
             2 -> Just $ DivNumber x
             3 -> Just $ MulNumber x
             _ -> Nothing
-instance symbioteOperationNumber' :: SymbioteOperation Number' Number'Operation where
+instance symbioteOperationNumber' :: SymbioteOperation Number' Number' Number'Operation where
   perform op (Number' x) = case op of
     AddNumber y -> Number' (x + y)
     DelNumber y -> Number' (x - y)
@@ -397,7 +348,7 @@ instance decodeArrayBufferArray'Operation :: DecodeArrayBuffer Array'Operation w
         | x == 1 -> pure (Just InitArray)
         | x == 2 -> pure (Just TailArray)
         | otherwise -> pure Nothing
-instance symbioteOperationArray' :: SymbioteOperation (Array' a) Array'Operation where
+instance symbioteOperationArray' :: SymbioteOperation (Array' a) (Array' a) Array'Operation where
   perform op (Array' x) = case op of
     ReverseArray -> Array' $ Array.reverse x
     InitArray -> Array' $ case Array.init x of
@@ -437,13 +388,23 @@ instance eqJson'Operation :: Eq Json'Operation where
   eq = genericEq
 instance arbitraryJson'Operation :: Arbitrary Json'Operation where
   arbitrary = pure IdJson'
-instance symbioteOperationJson' :: SymbioteOperation Json' Json'Operation where
+instance symbioteOperationJson' :: SymbioteOperation Json' Json' Json'Operation where
   perform IdJson' x = x
-instance symbioteJson' :: Symbiote Json' Json'Operation (AV Uint8 UInt) where
+instance symbioteJson' :: Symbiote Json' Json' Json'Operation (AV Uint8 UInt) where
   encode (Json' x) = unsafePerformEffect do
     b <- encodeArrayBuffer (Json.stringify x)
     AV <$> whole b
   decode (AV t) = unsafePerformEffect do
+    ms <- decodeArrayBuffer (buffer t)
+    case Json.jsonParser <$> ms of
+      Nothing -> Nothing <$ error "No buffer"
+      Just me -> case me of
+        Left e -> Nothing <$ error e
+        Right y -> pure (Just (Json' y))
+  encodeOut _ (Json' x) = unsafePerformEffect do
+    b <- encodeArrayBuffer (Json.stringify x)
+    AV <$> whole b
+  decodeOut _ (AV t) = unsafePerformEffect do
     ms <- decodeArrayBuffer (buffer t)
     case Json.jsonParser <$> ms of
       Nothing -> Nothing <$ error "No buffer"

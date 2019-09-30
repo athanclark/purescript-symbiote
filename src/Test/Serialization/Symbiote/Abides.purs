@@ -15,12 +15,12 @@ import Data.ArrayBuffer.Class
   ( class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength
   , putArrayBuffer, readArrayBuffer, byteLength)
 import Data.ArrayBuffer.Class.Types (Uint8 (..))
-import Data.UInt (fromInt, toInt)
+import Data.UInt (fromInt)
 import Data.Either (Either (Left))
 import Data.Maybe (Maybe (..))
 import Data.NonEmpty (NonEmpty (..))
 import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
+import Data.Generic.Rep.Eq (genericEq)
 import Data.Enum (class BoundedEnum, class Enum)
 import Control.Alternative ((<|>))
 import Test.Abides.Data.Semigroup as Semigroup
@@ -196,8 +196,11 @@ instance symbioteOperationAbidesSemigroup ::
 data AbidesSemigroupOperation a
   = SemigroupAssociative (AbidesSemigroup a) (AbidesSemigroup a)
 derive instance genericAbidesSemigroupOperation :: Generic a a' => Generic (AbidesSemigroupOperation a) _
-instance showAbidesSemigroupOperation :: (Show a, Generic a a') => Show (AbidesSemigroupOperation a) where
-  show = genericShow
+instance eqAbidesSemigroupOperation :: (Eq a, Generic a a') => Eq (AbidesSemigroupOperation a) where
+  eq = genericEq
+instance showAbidesSemigroupOperation :: (Show a) => Show (AbidesSemigroupOperation a) where
+  show op = case op of
+    SemigroupAssociative y z -> "SemigroupAssociative (" <> show y <> ") (" <> show z <> ")"
 instance arbitraryAbidesSemigroupOperation :: Arbitrary a => Arbitrary (AbidesSemigroupOperation a) where
   arbitrary = SemigroupAssociative <$> arbitrary <*> arbitrary
 instance encodeJsonAbidesSemigroupOperation :: EncodeJson a => EncodeJson (AbidesSemigroupOperation a) where
@@ -245,8 +248,13 @@ data AbidesMonoidOperation a
   | MonoidLeftIdentity
   | MonoidRightIdentity
 derive instance genericAbidesMonoidOperation :: Generic a a' => Generic (AbidesMonoidOperation a) _
-instance showAbidesMonoidOperation :: (Show a, Generic a a') => Show (AbidesMonoidOperation a) where
-  show = genericShow
+instance eqAbidesMonoidOperation :: (Eq a, Generic a a') => Eq (AbidesMonoidOperation a) where
+  eq = genericEq
+instance showAbidesMonoidOperation :: (Show a) => Show (AbidesMonoidOperation a) where
+  show op = case op of
+    MonoidSemigroup op' -> "MonoidSemigroup (" <> show op' <> ")"
+    MonoidLeftIdentity -> "MonoidLeftIdentity"
+    MonoidRightIdentity -> "MonoidRightIdentity"
 instance arbitraryMonoidOperation :: Arbitrary a => Arbitrary (AbidesMonoidOperation a) where
   arbitrary = oneOf $ NonEmpty
       (MonoidSemigroup <$> arbitrary)
@@ -315,8 +323,14 @@ data AbidesEqOperation a
   | EqTransitive (AbidesEq a) (AbidesEq a)
   | EqNegation (AbidesEq a)
 derive instance genericAbidesEqOperation :: Generic a a' => Generic (AbidesEqOperation a) _
-instance showAbidesEqOperation :: (Show a, Generic a a') => Show (AbidesEqOperation a) where
-  show = genericShow
+instance eqAbidesEqOperation :: (Eq a, Generic a a') => Eq (AbidesEqOperation a) where
+  eq = genericEq
+instance showAbidesEqOperation :: (Show a) => Show (AbidesEqOperation a) where
+  show op = case op of
+    EqReflexive -> "EqReflexive"
+    EqSymmetry y -> "EqSymmetry (" <> show y <> ")"
+    EqTransitive y z -> "EqTransitive (" <> show y <> ") (" <> show z <> ")"
+    EqNegation y -> "EqNegation (" <> show y <> ")"
 instance arbitraryAbidesEqOperation :: Arbitrary a => Arbitrary (AbidesEqOperation a) where
   arbitrary = oneOf $ NonEmpty
       (EqSymmetry <$> arbitrary)
@@ -425,8 +439,13 @@ data AbidesOrdOperation a
   | OrdAntiSymmetry (AbidesOrd a)
   | OrdTransitive (AbidesOrd a) (AbidesOrd a)
 derive instance genericAbidesOrdOperation :: Generic a a' => Generic (AbidesOrdOperation a) _
-instance showAbidesOrdOperation :: (Show a, Generic a a') => Show (AbidesOrdOperation a) where
-  show = genericShow
+instance eqAbidesOrdOperation :: (Eq a, Generic a a') => Eq (AbidesOrdOperation a) where
+  eq = genericEq
+instance showAbidesOrdOperation :: (Show a) => Show (AbidesOrdOperation a) where
+  show op = case op of
+    OrdReflexive -> "OrdReflexive"
+    OrdAntiSymmetry y -> "OrdAntiSymmetry (" <> show y <> ")"
+    OrdTransitive y z -> "OrdTransitive (" <> show y <> ") (" <> show z <> ")"
 instance arbitraryAbidesOrdOperation :: Arbitrary a => Arbitrary (AbidesOrdOperation a) where
   arbitrary = oneOf $ NonEmpty
       (OrdAntiSymmetry <$> arbitrary)
@@ -517,8 +536,13 @@ data AbidesEnumOperation a
   | EnumPredSucc
   | EnumSuccPred
 derive instance genericAbidesEnumOperation :: Generic a a' => Generic (AbidesEnumOperation a) _
-instance showAbidesEnumOperation :: (Show a, Generic a a') => Show (AbidesEnumOperation a) where
-  show = genericShow
+instance eqAbidesEnumOperation :: (Eq a, Generic a a') => Eq (AbidesEnumOperation a) where
+  eq = genericEq
+instance showAbidesEnumOperation :: (Show a) => Show (AbidesEnumOperation a) where
+  show op = case op of
+    EnumCompareHom y -> "EnumCompareHom (" <> show y <> ")"
+    EnumPredSucc -> "EnumPredSucc"
+    EnumSuccPred -> "EnumSuccPred"
 instance arbitraryAbidesEnumOperation :: Arbitrary a => Arbitrary (AbidesEnumOperation a) where
   arbitrary = oneOf $ NonEmpty
       (EnumCompareHom <$> arbitrary)
@@ -589,8 +613,15 @@ data AbidesSemiringOperation a
   | SemiringRightDistributive (AbidesSemiring a) (AbidesSemiring a)
   | SemiringAnnihilation
 derive instance genericAbidesSemiringOperation :: Generic a a' => Generic (AbidesSemiringOperation a) _
-instance showAbidesSemiringOperation :: (Show a, Generic a a') => Show (AbidesSemiringOperation a) where
-  show = genericShow
+instance eqAbidesSemiringOperation :: (Eq a, Generic a a') => Eq (AbidesSemiringOperation a) where
+  eq = genericEq
+instance showAbidesSemiringOperation :: (Show a) => Show (AbidesSemiringOperation a) where
+  show op = case op of
+    SemiringCommutativeMonoid y z -> "SemiringCommutativeMonoid (" <> show y <> ") (" <> show z <> ")"
+    SemiringMonoid y z -> "SemiringMonoid (" <> show y <> ") (" <> show z <> ")"
+    SemiringLeftDistributive y z -> "SemiringLeftDistributive (" <> show y <> ") (" <> show z <> ")"
+    SemiringRightDistributive y z -> "SemiringRightDistributive (" <> show y <> ") (" <> show z <> ")"
+    SemiringAnnihilation -> "SemiringAnnihilation"
 instance arbitraryAbidesSemiringOperation :: Arbitrary a => Arbitrary (AbidesSemiringOperation a) where
   arbitrary = oneOf $ NonEmpty
       (SemiringCommutativeMonoid <$> arbitrary <*> arbitrary)
@@ -631,10 +662,10 @@ instance decodeJsonAbidesSemiringOperation :: DecodeJson a => DecodeJson (Abides
             | otherwise -> Left "AbidesSemiringOperation a"
 instance dynamicByteLengthAbidesSemiringOperation :: DynamicByteLength a => DynamicByteLength (AbidesSemiringOperation a) where
   byteLength op = case op of
-    SemiringCommutativeMonoid y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
-    SemiringMonoid y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
-    SemiringLeftDistributive y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
-    SemiringRightDistributive y z -> (\a b -> a + b) <$> byteLength y <*> byteLength z
+    SemiringCommutativeMonoid y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
+    SemiringMonoid y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
+    SemiringLeftDistributive y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
+    SemiringRightDistributive y z -> (\a b -> a + b + 1) <$> byteLength y <*> byteLength z
     SemiringAnnihilation -> pure 1
 instance encodeArrayBufferAbidesSemiringOperation :: EncodeArrayBuffer a => EncodeArrayBuffer (AbidesSemiringOperation a) where
   putArrayBuffer b o op = case op of
@@ -748,8 +779,12 @@ data AbidesRingOperation a
   = RingSemiring (AbidesSemiringOperation a)
   | RingAdditiveInverse
 derive instance genericAbidesRingOperation :: Generic a a' => Generic (AbidesRingOperation a) _
-instance showAbidesRingOperation :: (Show a, Generic a a') => Show (AbidesRingOperation a) where
-  show = genericShow
+instance eqAbidesRingOperation :: (Eq a, Generic a a') => Eq (AbidesRingOperation a) where
+  eq = genericEq
+instance showAbidesRingOperation :: (Show a) => Show (AbidesRingOperation a) where
+  show op = case op of
+    RingSemiring y -> "RingSemiring (" <> show y <> ")"
+    RingAdditiveInverse -> "RingAdditiveInverse"
 instance arbitraryAbidesRingOperation :: Arbitrary a => Arbitrary (AbidesRingOperation a) where
   arbitrary = oneOf $ NonEmpty
       (RingSemiring <$> arbitrary)
@@ -808,8 +843,12 @@ data AbidesCommutativeRingOperation a
   = CommutativeRingRing (AbidesRingOperation a)
   | CommutativeRingCommutative (AbidesCommutativeRing a)
 derive instance genericAbidesCommutativeRingOperation :: Generic a a' => Generic (AbidesCommutativeRingOperation a) _
-instance showAbidesCommutativeRingOperation :: (Show a, Generic a a') => Show (AbidesCommutativeRingOperation a) where
-  show = genericShow
+instance eqAbidesCommutativeRingOperation :: (Eq a, Generic a a') => Eq (AbidesCommutativeRingOperation a) where
+  eq = genericEq
+instance showAbidesCommutativeRingOperation :: (Show a) => Show (AbidesCommutativeRingOperation a) where
+  show op = case op of
+    CommutativeRingRing y -> "CommutativeRingRing (" <> show y <> ")"
+    CommutativeRingCommutative y -> "CommutativeRingCommutative (" <> show y <> ")"
 instance arbitraryAbidesCommutativeRingOperation :: Arbitrary a => Arbitrary (AbidesCommutativeRingOperation a) where
   arbitrary = oneOf $ NonEmpty
       (CommutativeRingRing <$> arbitrary)
@@ -875,8 +914,12 @@ data AbidesDivisionRingOperation a
   = DivisionRingRing (AbidesRingOperation a)
   | DivisionRingInverse
 derive instance genericDivisionRingOperation :: Generic a a' => Generic (AbidesDivisionRingOperation a) _
-instance showAbidesDivisionRingOperation :: (Show a, Generic a a') => Show (AbidesDivisionRingOperation a) where
-  show = genericShow
+instance eqAbidesDivisionRingOperation :: (Eq a, Generic a a') => Eq (AbidesDivisionRingOperation a) where
+  eq = genericEq
+instance showAbidesDivisionRingOperation :: (Show a) => Show (AbidesDivisionRingOperation a) where
+  show op = case op of
+    DivisionRingRing y -> "DivisionRingRing (" <> show y <> ")"
+    DivisionRingInverse -> "DivisionRingInverse"
 instance arbitraryAbidesDivisionRingOperation :: Arbitrary a => Arbitrary (AbidesDivisionRingOperation a) where
   arbitrary = oneOf $ NonEmpty
       (DivisionRingRing <$> arbitrary)
@@ -935,8 +978,12 @@ data AbidesEuclideanRingOperation a
   = EuclideanRingCommutativeRing (AbidesCommutativeRingOperation a)
   | EuclideanRingIntegralDomain (AbidesEuclideanRing a)
 derive instance genericAbidesEuclideanRingOperation :: Generic a a' => Generic (AbidesEuclideanRingOperation a) _
-instance showAbidesEuclideanRingOperation :: (Show a, Generic a a') => Show (AbidesEuclideanRingOperation a) where
-  show = genericShow
+instance eqAbidesEuclideanRingOperation :: (Eq a, Generic a a') => Eq (AbidesEuclideanRingOperation a) where
+  eq = genericEq
+instance showAbidesEuclideanRingOperation :: (Show a) => Show (AbidesEuclideanRingOperation a) where
+  show op = case op of
+    EuclideanRingCommutativeRing y -> "EuclideanRingCommutativeRing (" <> show y <> ")"
+    EuclideanRingIntegralDomain y -> "EuclideanRingIntegralDomain (" <> show y <> ")"
 instance arbitraryAbidesEuclideanRingOperation :: Arbitrary a => Arbitrary (AbidesEuclideanRingOperation a) where
   arbitrary = oneOf $ NonEmpty
       (EuclideanRingCommutativeRing <$> arbitrary)
@@ -1002,8 +1049,12 @@ data AbidesFieldOperation a
   = FieldDivisionRing (AbidesDivisionRingOperation a)
   | FieldEuclideanRing (AbidesEuclideanRingOperation a)
 derive instance genericAbidesFieldOperation :: Generic a a' => Generic (AbidesFieldOperation a) _
-instance showAbidesFieldOperation :: (Show a, Generic a a') => Show (AbidesFieldOperation a) where
-  show = genericShow
+instance eqAbidesFieldOperation :: (Eq a, Generic a a') => Eq (AbidesFieldOperation a) where
+  eq = genericEq
+instance showAbidesFieldOperation :: (Show a) => Show (AbidesFieldOperation a) where
+  show op = case op of
+    FieldDivisionRing y -> "FieldDivisionRing (" <> show y <> ")"
+    FieldEuclideanRing y -> "FieldEuclideanRing (" <> show y <> ")"
 instance arbitraryAbidesFieldOperation :: Arbitrary a => Arbitrary (AbidesFieldOperation a) where
   arbitrary = oneOf $ NonEmpty
       (FieldDivisionRing <$> arbitrary)

@@ -20,6 +20,7 @@ import Data.Map (Map)
 import Data.Map (insert, keys, lookup) as Map
 import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
+import Data.Tuple (Tuple (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
@@ -31,12 +32,13 @@ import Effect.Aff (Aff, forkAff, joinFiber)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Ref (Ref)
 import Effect.Ref (new, read, write) as Ref
-import Effect.Console (log, error)
+import Effect.Console (log, error, warn)
 import Queue.One (Queue, READ, WRITE)
 import Queue.One (new, put, draw) as Queue
 import Type.Proxy (Proxy (..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
 import Partial.Unsafe (unsafePartial)
+import Debug.Trace (traceM)
 
 
 -- | The most trivial serialization medium for any @a@.
@@ -47,14 +49,19 @@ data SimpleSerialization a o op
 derive instance genericSimpleSerialization :: (Generic a a', Generic o o', Generic op op') => Generic (SimpleSerialization a o op) _
 instance eqSimpleSerialization ::
   ( Eq a, Eq o, Eq op
-  , Generic a a', Generic o o', Generic op op'
   ) => Eq (SimpleSerialization a o op) where
-  eq = genericEq
+  eq x y = case Tuple x y of
+    Tuple (SimpleValue a) (SimpleValue b) -> a == b
+    Tuple (SimpleOutput a) (SimpleOutput b) -> a == b
+    Tuple (SimpleOperation a) (SimpleOperation b) -> a == b
+    _ -> false
 instance showSimpleSerialization ::
   ( Show a, Show o, Show op
-  , Generic a a', Generic o o', Generic op op'
   ) => Show (SimpleSerialization a o op) where
-  show = genericShow
+  show x = case x of
+    SimpleValue y -> "SimpleValue (" <> show y <> ")"
+    SimpleOutput y -> "SimpleOutput (" <> show y <> ")"
+    SimpleOperation y -> "SimpleOperation (" <> show y <> ")"
 
 instance symbioteSimpleSerialization :: Exposed.SymbioteOperation a o op => Symbiote a o op (SimpleSerialization a o op) where
   encode = SimpleValue
@@ -203,13 +210,12 @@ defaultSuccess :: Topic -> Effect Unit
 defaultSuccess (Topic t) = log $ "Topic " <> t <> " succeeded"
 
 -- | Via putStrLn
-defaultFailure :: forall them s them' s'
-                . Show (them s)
-               => Generic (them s) them'
-               => Show s
-               => Generic s s'
-               => Failure them s -> Effect Unit
-defaultFailure f = error $ "Failure: " <> show f
+defaultFailure :: forall them s
+                . Failure them s -> Effect Unit
+defaultFailure f = do
+  warn "Failure:"
+  traceM f
+  error "Failed."
 
 -- | Via putStrLn
 defaultProgress :: Topic -> Number -> Effect Unit
@@ -540,12 +546,11 @@ operating
 
 
 -- | Prints to stdout and uses a local channel for a sanity-check - doesn't serialize.
-simpleTest :: forall s s' m stM
+simpleTest :: forall s m stM
             . MonadBaseControl Aff m stM
            => MonadAff m
            => MonadEffect m
            => Show s
-           => Generic s s'
            => SymbioteT s m Unit
            -> m Unit
 simpleTest = simpleTest'
@@ -554,12 +559,11 @@ simpleTest = simpleTest'
   (liftEffect <<< defaultFailure)
   nullProgress
 
-simpleTest' :: forall s s' m stM
+simpleTest' :: forall s m stM
              . MonadBaseControl Aff m stM
             => MonadAff m
             => MonadEffect m
             => Show s
-            => Generic s s'
             => (Topic -> m Unit) -- ^ report topic success
             -> (Failure Second s -> m Unit) -- ^ report topic failure
             -> (Failure First s -> m Unit) -- ^ report topic failure
