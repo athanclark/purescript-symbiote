@@ -6,7 +6,7 @@ import Test.Serialization.Symbiote
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 import Test.Serialization.Symbiote.Abides
-  (AbidesEuclideanRing (..), AbidesEuclideanRingOperation)
+  (AbidesEuclideanRing (..), AbidesEuclideanRingOperation, AbidesField (..), AbidesFieldOperation)
 
 import Prelude
 import Data.Generic.Rep (class Generic)
@@ -63,9 +63,9 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         intSuite :: SymbioteT (SimpleSerialization Int' Boolean Int'Operation) Aff Unit
         intSuite = register (Topic "Int") 100
           (Proxy :: Proxy {value :: Int', output :: Boolean, operation :: Int'Operation})
-        numberSuite :: SymbioteT (SimpleSerialization Number' Number' Number'Operation) Aff Unit
+        numberSuite :: SymbioteT (SimpleSerialization Number' Boolean Number'Operation) Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: Number', output :: Number', operation :: Number'Operation})
+          (Proxy :: Proxy {value :: Number', output :: Boolean, operation :: Number'Operation})
         arraySuite :: SymbioteT (SimpleSerialization (Array' Int') (Array' Int') Array'Operation) Aff Unit
         arraySuite = register (Topic "Array") 100
           (Proxy :: Proxy {value :: Array' Int', output :: Array' Int', operation :: Array'Operation})
@@ -83,7 +83,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
           (Proxy :: Proxy {value :: ToArrayBuffer Int', output :: ToArrayBuffer Boolean, operation :: ToArrayBuffer Int'Operation})
         numberSuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: ToArrayBuffer Number', output :: ToArrayBuffer Number', operation :: ToArrayBuffer Number'Operation})
+          (Proxy :: Proxy {value :: ToArrayBuffer Number', output :: ToArrayBuffer Boolean, operation :: ToArrayBuffer Number'Operation})
         arraySuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         arraySuite = register (Topic "Array") 100
           (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), output :: ToArrayBuffer (Array' Int'), operation :: ToArrayBuffer Array'Operation})
@@ -97,7 +97,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
           (Proxy :: Proxy {value :: ToArgonaut Int', output :: ToArgonaut Boolean, operation :: ToArgonaut Int'Operation})
         numberSuite :: SymbioteT ShowJson Aff Unit
         numberSuite = register (Topic "Number") 100
-          (Proxy :: Proxy {value :: ToArgonaut Number', output :: ToArgonaut Number', operation :: ToArgonaut Number'Operation})
+          (Proxy :: Proxy {value :: ToArgonaut Number', output :: ToArgonaut Boolean, operation :: ToArgonaut Number'Operation})
         arraySuite :: SymbioteT ShowJson Aff Unit
         arraySuite = register (Topic "Array") 100
           (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), output :: ToArgonaut (Array' Int'), operation :: ToArgonaut Array'Operation})
@@ -157,41 +157,30 @@ instance decodeArrayBufferInt' :: DecodeArrayBuffer Int' where
     case mx of
       Nothing -> pure Nothing
       Just (Int32BE x) -> pure (Just (Int' x))
-data Int'Operation
-  = IntEuclideanRing (AbidesEuclideanRingOperation Int')
+newtype Int'Operation = Int'Operation (AbidesEuclideanRingOperation Int')
 derive instance genericInt'Operation :: Generic Int'Operation _
-instance showInt'Operation :: Show Int'Operation where
-  show = genericShow
-instance eqInt'Operation :: Eq Int'Operation where
-  eq = genericEq
-instance arbitraryInt'Operation :: Arbitrary Int'Operation where
-  arbitrary = IntEuclideanRing <$> arbitrary
-instance encodeJsonInt'Operation :: EncodeJson Int'Operation where
-  encodeJson x = case x of
-    IntEuclideanRing y -> encodeJson y
-instance decodeJsonInt'Operation :: DecodeJson Int'Operation where
-  decodeJson json = IntEuclideanRing <$> decodeJson json
-instance dynamicByteLengthInt'Operation :: DynamicByteLength Int'Operation where
-  byteLength op = case op of
-    IntEuclideanRing y -> byteLength y
-instance encodeArrayBufferInt'Operation :: EncodeArrayBuffer Int'Operation where
-  putArrayBuffer b o op = case op of
-    IntEuclideanRing y -> putArrayBuffer b o y
-instance decodeArrayBufferInt'Operation :: DecodeArrayBuffer Int'Operation where
-  readArrayBuffer b o = do
-    mX <- readArrayBuffer b o
-    case mX of
-      Nothing -> pure Nothing
-      Just x -> pure (Just (IntEuclideanRing x))
+derive newtype instance showInt'Operation :: Show Int'Operation
+derive newtype instance eqInt'Operation :: Eq Int'Operation
+derive newtype instance arbitraryInt'Operation :: Arbitrary Int'Operation
+derive newtype instance encodeJsonInt'Operation :: EncodeJson Int'Operation
+derive newtype instance decodeJsonInt'Operation :: DecodeJson Int'Operation
+derive newtype instance dynamicByteLengthInt'Operation :: DynamicByteLength Int'Operation
+derive newtype instance encodeArrayBufferInt'Operation :: EncodeArrayBuffer Int'Operation
+derive newtype instance decodeArrayBufferInt'Operation :: DecodeArrayBuffer Int'Operation
 instance symbioteOperationInt' :: SymbioteOperation Int' Boolean Int'Operation where
   perform op x = case op of
-    IntEuclideanRing op' -> perform op' (AbidesEuclideanRing x)
+    Int'Operation op' -> perform op' (AbidesEuclideanRing x)
 
 
 newtype Number' = Number' Number
 derive instance genericNumber' :: Generic Number' _
 derive newtype instance showNumber' :: Show Number'
 derive newtype instance eqNumber' :: Eq Number'
+derive newtype instance semiringNumber' :: Semiring Number'
+derive newtype instance ringNumber' :: Ring Number'
+derive newtype instance commutativeRingNumber' :: CommutativeRing Number'
+derive newtype instance divisionRingNumber' :: DivisionRing Number'
+derive newtype instance euclideanRingNumber' :: EuclideanRing Number'
 derive newtype instance arbitraryNumber' :: Arbitrary Number'
 derive newtype instance encodeJsonNumber' :: EncodeJson Number'
 derive newtype instance decodeJsonNumber' :: DecodeJson Number'
@@ -205,94 +194,19 @@ instance decodeArrayBufferNumber' :: DecodeArrayBuffer Number' where
     case mx of
       Nothing -> pure Nothing
       Just (Float64BE x) -> pure (Just (Number' x))
-data Number'Operation
-  = AddNumber Number
-  | DelNumber Number
-  | DivNumber Number
-  | MulNumber Number
-  | RecipNumber
+newtype Number'Operation = Number'Operation (AbidesFieldOperation Number')
 derive instance genericNumber'Operation :: Generic Number'Operation _
-instance showNumber'Operation :: Show Number'Operation where
-  show = genericShow
-instance eqNumber'Operation :: Eq Number'Operation where
-  eq = genericEq
-instance arbitraryNumber'Operation :: Arbitrary Number'Operation where
-  arbitrary = oneOf $ NonEmpty (AddNumber <$> arbitrary)
-    [ DelNumber <$> arbitrary
-    , DivNumber <$> arbitrary
-    , MulNumber <$> arbitrary
-    , pure RecipNumber
-    ]
-instance encodeJsonNumber'Operation :: EncodeJson Number'Operation where
-  encodeJson x = case x of
-    AddNumber y -> encodeJson {add: y}
-    DelNumber y -> encodeJson {del: y}
-    DivNumber y -> encodeJson {div: y}
-    MulNumber y -> encodeJson {mul: y}
-    RecipNumber -> encodeJson "recip"
-instance decodeJsonNumber'Operation :: DecodeJson Number'Operation where
-  decodeJson x = tryAdd <|> tryDel <|> tryDiv <|> tryMul <|> tryRecip
-    where
-      tryAdd = do
-        ({add} :: {add :: Number}) <- decodeJson x
-        pure (AddNumber add)
-      tryDel = do
-        ({del} :: {del :: Number}) <- decodeJson x
-        pure (DelNumber del)
-      tryDiv = do
-        ({div} :: {div :: Number}) <- decodeJson x
-        pure (DivNumber div)
-      tryMul = do
-        ({mul} :: {mul :: Number}) <- decodeJson x
-        pure (MulNumber mul)
-      tryRecip = do
-        r <- decodeJson x
-        if r == "recip"
-          then pure RecipNumber
-          else Left "Not a Recip"
-instance dynamicByteLengthNumber'Operation :: DynamicByteLength Number'Operation where
-  byteLength x = case x of
-    AddNumber y -> (_ + 1) <$> byteLength (Float64BE y)
-    DelNumber y -> (_ + 1) <$> byteLength (Float64BE y)
-    DivNumber y -> (_ + 1) <$> byteLength (Float64BE y)
-    MulNumber y -> (_ + 1) <$> byteLength (Float64BE y)
-    RecipNumber -> pure 1
-instance encodeArrayBufferNumber'Operation :: EncodeArrayBuffer Number'Operation where
-  putArrayBuffer b o op = case op of
-    AddNumber x -> putArrayBuffer b o (Int8 0) >>= cont x
-    DelNumber x -> putArrayBuffer b o (Int8 1) >>= cont x
-    DivNumber x -> putArrayBuffer b o (Int8 2) >>= cont x
-    MulNumber x -> putArrayBuffer b o (Int8 3) >>= cont x
-    RecipNumber -> putArrayBuffer b o (Int8 4)
-    where
-      cont x ml =
-        case ml of
-          Nothing -> pure Nothing
-          Just l -> (map (_ + 1)) <$> putArrayBuffer b (o + l) (Float64BE x)
-instance decodeArrayBufferNumber'Operation :: DecodeArrayBuffer Number'Operation where
-  readArrayBuffer b o = do
-    mopcode <- readArrayBuffer b o
-    case mopcode of
-      Nothing -> pure Nothing
-      Just (Int8 opcode)
-        | opcode == 4 -> pure $ Just RecipNumber
-        | otherwise -> do
-        mX <- readArrayBuffer b (o + 1)
-        case mX of
-          Nothing -> pure Nothing
-          Just (Float64BE x) -> pure $ case opcode of
-            0 -> Just $ AddNumber x
-            1 -> Just $ DelNumber x
-            2 -> Just $ DivNumber x
-            3 -> Just $ MulNumber x
-            _ -> Nothing
-instance symbioteOperationNumber' :: SymbioteOperation Number' Number' Number'Operation where
-  perform op (Number' x) = case op of
-    AddNumber y -> Number' (x + y)
-    DelNumber y -> Number' (x - y)
-    DivNumber y -> Number' $ if y == 0.0 then 0.0 else x / y
-    MulNumber y -> Number' (x * y)
-    RecipNumber -> Number' $ if x == 0.0 then 0.0 else recip x
+derive newtype instance showNumber'Operation :: Show Number'Operation
+derive newtype instance eqNumber'Operation :: Eq Number'Operation
+derive newtype instance arbitraryNumber'Operation :: Arbitrary Number'Operation
+derive newtype instance encodeJsonNumber'Operation :: EncodeJson Number'Operation
+derive newtype instance decodeJsonNumber'Operation :: DecodeJson Number'Operation
+derive newtype instance dynamicByteLengthNumber'Operation :: DynamicByteLength Number'Operation
+derive newtype instance encodeArrayBufferNumber'Operation :: EncodeArrayBuffer Number'Operation
+derive newtype instance decodeArrayBufferNumber'Operation :: DecodeArrayBuffer Number'Operation
+instance symbioteOperationNumber' :: SymbioteOperation Number' Boolean Number'Operation where
+  perform op x = case op of
+    Number'Operation op' -> perform op' (AbidesField x)
 
 
 newtype Array' a = Array' (Array a)
