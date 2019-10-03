@@ -14,6 +14,7 @@ import Effect.Ref (Ref)
 import Effect.Ref (modify, read) as Ref
 import Effect.Class (class MonadEffect, liftEffect)
 import Type.Proxy (Proxy)
+import Test.QuickCheck (class Arbitrary)
 import Test.QuickCheck.Gen (Gen)
 import Test.QuickCheck.Gen (evalGen) as QC
 import Random.LCG (randomSeed)
@@ -43,6 +44,7 @@ derive instance genericTopic :: Generic Topic _
 derive newtype instance eqTopic :: Eq Topic
 derive newtype instance ordTopic :: Ord Topic
 derive newtype instance showTopic :: Show Topic
+derive newtype instance arbitraryTopic :: Arbitrary Topic
 derive newtype instance encodeJsonTopic :: EncodeJson Topic
 derive newtype instance decodeJsonTopic :: DecodeJson Topic
 derive newtype instance encodeArrayBufferTopic :: EncodeArrayBuffer Topic

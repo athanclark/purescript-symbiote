@@ -2,7 +2,7 @@ module Test.Main where
 
 import Test.Serialization.Symbiote
   ( class SymbioteOperation, class Symbiote, Topic (..), register
-  , perform, SymbioteT, SimpleSerialization, simpleTest)
+  , perform, SymbioteT, SimpleSerialization, simpleTest, Generating, Operating, First, Second)
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 import Test.Serialization.Symbiote.Abides
@@ -66,6 +66,12 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         go "AbidesDivisionRing Int'" (Proxy :: Proxy (AbidesDivisionRing Int'))
         go "AbidesEuclideanRing Int'" (Proxy :: Proxy (AbidesEuclideanRing Int'))
         go "AbidesField Int'" (Proxy :: Proxy (AbidesField Int'))
+      describe "Symbiote" do
+        go "Generating Int'" (Proxy :: Proxy (Generating Int'))
+        go "Operating Int'" (Proxy :: Proxy (Operating Int'))
+        go "First Int'" (Proxy :: Proxy (First Int'))
+        go "Second Int'" (Proxy :: Proxy (Second Int'))
+        go "Topic" (Proxy :: Proxy Topic)
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)

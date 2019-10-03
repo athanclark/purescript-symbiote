@@ -17,13 +17,17 @@ import Test.Serialization.Symbiote.Core
 
 import Prelude
 import Data.Map (Map)
-import Data.Map (insert, keys, lookup) as Map
+import Data.Map (insert, keys, lookup, fromFoldable) as Map
 import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
 import Data.Tuple (Tuple (..))
+import Data.Either (Either (Left))
+import Data.NonEmpty (NonEmpty (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
+import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson, (.:), (:=), jsonEmptyObject, (~>))
+import Control.Alternative ((<|>))
 import Control.Monad.State (modify)
 import Control.Monad.Trans.Control (class MonadBaseControl, liftBaseWith)
 import Effect (Effect)
@@ -37,6 +41,7 @@ import Queue.One (Queue, READ, WRITE)
 import Queue.One (new, put, draw) as Queue
 import Type.Proxy (Proxy (..))
 import Test.QuickCheck (class Arbitrary, arbitrary)
+import Test.QuickCheck.Gen (oneOf)
 import Partial.Unsafe (unsafePartial)
 import Debug.Trace (traceM)
 
@@ -116,6 +121,37 @@ instance eqGenerating :: (Eq s, Generic s s') => Eq (Generating s) where
   eq = genericEq
 instance showGenerating :: (Show s, Generic s s') => Show (Generating s) where
   show = genericShow
+instance arbitraryGenerating :: Arbitrary s => Arbitrary (Generating s) where
+  arbitrary = oneOf $ NonEmpty (BadResult <$> arbitrary)
+    [ do  value <- arbitrary
+          operation <- arbitrary
+          pure $ Generated {value,operation}
+    , pure YourTurn
+    , pure ImFinished
+    , GeneratingNoParseOperated <$> arbitrary
+    ]
+instance encodeJsonGenerating :: EncodeJson s => EncodeJson (Generating s) where
+  encodeJson x = case x of
+    Generated y -> "generated" := y ~> jsonEmptyObject
+    BadResult y -> "badResult" := y ~> jsonEmptyObject
+    YourTurn -> encodeJson "yourTurn"
+    ImFinished -> encodeJson "imFinished"
+    GeneratingNoParseOperated y -> "noParseOperated" := y ~> jsonEmptyObject
+instance decodeJsonGenerating :: DecodeJson s => DecodeJson (Generating s) where
+  decodeJson json = string <|> object
+    where
+      string = do
+        s <- decodeJson json
+        case s of
+          _ | s == "yourTurn" -> pure YourTurn
+            | s == "imFinished" -> pure ImFinished
+            | otherwise -> Left "Generating s"
+      object = do
+        o <- decodeJson json
+        let generated = Generated <$> o .: "generated"
+            badResult = BadResult <$> o .: "badResult"
+            noParseOperated = GeneratingNoParseOperated <$> o .: "noParseOperated"
+        generated <|> badResult <|> noParseOperated
 
 
 -- | Messages sent by a peer during their operating phase
@@ -128,6 +164,23 @@ instance eqOperating :: (Eq s, Generic s s') => Eq (Operating s) where
   eq = genericEq
 instance showOperating :: (Show s, Generic s s') => Show (Operating s) where
   show = genericShow
+instance arbitraryOperating :: Arbitrary s => Arbitrary (Operating s) where
+  arbitrary = oneOf $ NonEmpty (Operated <$> arbitrary)
+    [ OperatingNoParseValue <$> arbitrary
+    , OperatingNoParseOperation <$> arbitrary
+    ]
+instance encodeJsonOperating :: EncodeJson s => EncodeJson (Operating s) where
+  encodeJson x = case x of
+    Operated y -> "operated" := y ~> jsonEmptyObject
+    OperatingNoParseValue y -> "noParseValue" := y ~> jsonEmptyObject
+    OperatingNoParseOperation y -> "noParseOperation" := y ~> jsonEmptyObject
+instance decodeJsonOperating :: DecodeJson s => DecodeJson (Operating s) where
+  decodeJson json = do
+    o <- decodeJson json
+    let operated = Operated <$> o .: "operated"
+        noParseValue = OperatingNoParseValue <$> o .: "noParseValue"
+        noParseOperation = OperatingNoParseOperation <$> o .: "noParseOperation"
+    operated <|> noParseValue <|> noParseOperation
 
 
 -- | Messages sent by the first peer
@@ -140,6 +193,29 @@ instance eqFirst :: (Eq s, Generic s s') => Eq (First s) where
   eq = genericEq
 instance showFirst :: (Show s, Generic s s') => Show (First s) where
   show = genericShow
+instance arbitraryFirst :: Arbitrary s => Arbitrary (First s) where
+  arbitrary = oneOf $ NonEmpty
+    ( (AvailableTopics <<< (\x -> Map.fromFoldable (x :: Array _)))
+      <$> arbitrary)
+    [ do  topic <- arbitrary
+          generating <- arbitrary
+          pure $ FirstGenerating {topic,generating}
+    , do  topic <- arbitrary
+          operating <- arbitrary
+          pure $ FirstOperating {topic,operating}
+    ]
+instance encodeJsonFirst :: EncodeJson s => EncodeJson (First s) where
+  encodeJson x = case x of
+    AvailableTopics y -> "availableTopics" := y ~> jsonEmptyObject
+    FirstGenerating y -> "firstGenerating" := y ~> jsonEmptyObject
+    FirstOperating y -> "firstOperating" := y ~> jsonEmptyObject
+instance decodeJsonFirst :: DecodeJson s => DecodeJson (First s) where
+  decodeJson json = do
+    o <- decodeJson json
+    let availableTopics = AvailableTopics <$> o .: "availableTopics"
+        firstGenerating = FirstGenerating <$> o .: "firstGenerating"
+        firstOperating = FirstOperating <$> o .: "firstOperating"
+    availableTopics <|> firstGenerating <|> firstOperating
 
 getFirstGenerating :: forall s. First s -> Maybe {topic :: Topic, generating :: Generating s}
 getFirstGenerating x = case x of
@@ -163,6 +239,36 @@ instance eqSecond :: (Eq s, Generic s s') => Eq (Second s) where
   eq = genericEq
 instance showSecond :: (Show s, Generic s s') => Show (Second s) where
   show = genericShow
+instance arbitrarySecond :: Arbitrary s => Arbitrary (Second s) where
+  arbitrary = oneOf $ NonEmpty (pure Start)
+    [ BadTopics <<< (\x -> Map.fromFoldable (x :: Array _)) <$> arbitrary
+    , do  topic <- arbitrary
+          operating <- arbitrary
+          pure (SecondOperating {topic,operating})
+    , do  topic <- arbitrary
+          generating <- arbitrary
+          pure (SecondGenerating {topic,generating})
+    ]
+instance encodeJsonSecond :: EncodeJson s => EncodeJson (Second s) where
+  encodeJson x = case x of
+    BadTopics y -> "badTopics" := y ~> jsonEmptyObject
+    Start -> encodeJson "start"
+    SecondOperating y -> "secondOperating" := y ~> jsonEmptyObject
+    SecondGenerating y -> "secondGenerating" := y ~> jsonEmptyObject
+instance decodeJsonSecond :: DecodeJson s => DecodeJson (Second s) where
+  decodeJson json = string <|> object
+    where
+      string = do
+        s <- decodeJson json
+        case s of
+          _ | s == "start" -> pure Start
+            | otherwise -> Left "Second s"
+      object = do
+        o <- decodeJson json
+        let badTopics = BadTopics <$> o .: "badTopics"
+            secondOperating = SecondOperating <$> o .: "secondOperating"
+            secondGenerating = SecondGenerating <$> o .: "secondGenerating"
+        badTopics <|> secondOperating <|> secondGenerating
 
 getSecondGenerating :: forall s. Second s -> Maybe {topic :: Topic, generating :: Generating s}
 getSecondGenerating x = case x of
