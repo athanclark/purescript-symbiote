@@ -6,14 +6,15 @@ import Test.Serialization.Symbiote
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 import Test.Serialization.Symbiote.Abides
-  (AbidesEuclideanRing (..), AbidesEuclideanRingOperation, AbidesField (..), AbidesFieldOperation)
+  ( AbidesEuclideanRing (..), AbidesEuclideanRingOperation, AbidesField (..), AbidesFieldOperation
+  , AbidesMonoid (..), AbidesMonoidOperation)
 
 import Prelude
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Argonaut
-  ( class EncodeJson, class DecodeJson, encodeJson, decodeJson, Json
+  ( class EncodeJson, class DecodeJson, encodeJson, decodeJson, Json, (.:), (:=), jsonEmptyObject, (~>)
   )
 import Data.Argonaut
   (fromBoolean, jsonNull, fromNumber, fromString, fromArray, fromObject, stringify, jsonParser) as Json
@@ -66,9 +67,9 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         numberSuite :: SymbioteT (SimpleSerialization Number' Boolean Number'Operation) Aff Unit
         numberSuite = register (Topic "Number") 100
           (Proxy :: Proxy {value :: Number', output :: Boolean, operation :: Number'Operation})
-        arraySuite :: SymbioteT (SimpleSerialization (Array' Int') (Array' Int') Array'Operation) Aff Unit
+        arraySuite :: SymbioteT (SimpleSerialization (Array' Int') (Either Boolean (Array' Int')) (Array'Operation Int')) Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: Array' Int', output :: Array' Int', operation :: Array'Operation})
+          (Proxy :: Proxy {value :: Array' Int', output :: Either Boolean (Array' Int'), operation :: (Array'Operation Int')})
     arraybufferTests = describe "ArrayBuffer Tests" do
       it "Json over id" (simpleTest jsonSuite)
       it "Int over various" (simpleTest intSuite)
@@ -86,7 +87,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
           (Proxy :: Proxy {value :: ToArrayBuffer Number', output :: ToArrayBuffer Boolean, operation :: ToArrayBuffer Number'Operation})
         arraySuite :: SymbioteT (AV Uint8 UInt) Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), output :: ToArrayBuffer (Array' Int'), operation :: ToArrayBuffer Array'Operation})
+          (Proxy :: Proxy {value :: ToArrayBuffer (Array' Int'), output :: ToArrayBuffer (Either Boolean (Array' Int')), operation :: ToArrayBuffer (Array'Operation Int')})
     jsonTests = describe "Json Tests" do
       it "Int over various" (simpleTest intSuite)
       it "Number over various" (simpleTest numberSuite)
@@ -100,7 +101,7 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
           (Proxy :: Proxy {value :: ToArgonaut Number', output :: ToArgonaut Boolean, operation :: ToArgonaut Number'Operation})
         arraySuite :: SymbioteT ShowJson Aff Unit
         arraySuite = register (Topic "Array") 100
-          (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), output :: ToArgonaut (Array' Int'), operation :: ToArgonaut Array'Operation})
+          (Proxy :: Proxy {value :: ToArgonaut (Array' Int'), output :: ToArgonaut (Either Boolean (Array' Int')), operation :: ToArgonaut (Array'Operation Int')})
 
 
 
@@ -213,46 +214,68 @@ newtype Array' a = Array' (Array a)
 derive instance genericArray' :: Generic a a' => Generic (Array' a) _
 derive newtype instance showArray' :: Show a => Show (Array' a)
 derive newtype instance eqArray' :: Eq a => Eq (Array' a)
+derive newtype instance semigroupArray' :: Semigroup (Array' a)
+derive newtype instance monoidArray' :: Monoid (Array' a)
 derive newtype instance arbitraryArray' :: Arbitrary a => Arbitrary (Array' a)
 derive newtype instance encodeJsonArray' :: EncodeJson a => EncodeJson (Array' a)
 derive newtype instance decodeJsonArray' :: DecodeJson a => DecodeJson (Array' a)
 derive newtype instance dynamicByteLengthArray' :: DynamicByteLength a => DynamicByteLength (Array' a)
 derive newtype instance encodeArrayBufferArray' :: EncodeArrayBuffer a => EncodeArrayBuffer (Array' a)
 derive newtype instance decodeArrayBufferArray' :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (Array' a)
-data Array'Operation
+data Array'Operation a
   = ReverseArray
   | InitArray
   | TailArray
-derive instance genericArray'Operation :: Generic Array'Operation _
-instance showArray'Operation :: Show Array'Operation where
+  | Array'Monoid (AbidesMonoidOperation (Array' a))
+derive instance genericArray'Operation :: Generic a a' => Generic (Array'Operation a) _
+instance showArray'Operation :: (Show a, Generic a a') => Show (Array'Operation a) where
   show = genericShow
-instance eqArray'Operation :: Eq Array'Operation where
+instance eqArray'Operation :: (Eq a, Generic a a') => Eq (Array'Operation a) where
   eq = genericEq
-instance arbitraryArray'Operation :: Arbitrary Array'Operation where
-  arbitrary = elements $ NonEmpty ReverseArray
-    [ InitArray, TailArray
+instance arbitraryArray'Operation :: Arbitrary a => Arbitrary (Array'Operation a) where
+  arbitrary = oneOf $ NonEmpty (pure ReverseArray)
+    [ pure InitArray
+    , pure TailArray
+    , Array'Monoid <$> arbitrary
     ]
-instance encodeJsonArray'Operation :: EncodeJson Array'Operation where
-  encodeJson x = encodeJson $ case x of
-    ReverseArray -> "reverse"
-    InitArray -> "init"
-    TailArray -> "tail"
-instance decodeJsonArray'Operation :: DecodeJson Array'Operation where
-  decodeJson x = do
-    s <- decodeJson x
-    case unit of
-      _ | s == "reverse" -> pure ReverseArray
-        | s == "init" -> pure InitArray
-        | s == "tail" -> pure TailArray
-        | otherwise -> Left "Not a Array"
-instance dynamicByteLengthArray'Operation :: DynamicByteLength Array'Operation where
-  byteLength _ = pure 1
-instance encodeArrayBufferArray'Operation :: EncodeArrayBuffer Array'Operation where
-  putArrayBuffer b o op = putArrayBuffer b o $ Int8 $ case op of
-    ReverseArray -> 0
-    InitArray -> 1
-    TailArray -> 2
-instance decodeArrayBufferArray'Operation :: DecodeArrayBuffer Array'Operation where
+instance encodeJsonArray'Operation :: EncodeJson a => EncodeJson (Array'Operation a) where
+  encodeJson x = case x of
+    ReverseArray -> encodeJson "reverse"
+    InitArray -> encodeJson "init"
+    TailArray -> encodeJson "tail"
+    Array'Monoid op -> "monoid" := op ~> jsonEmptyObject
+instance decodeJsonArray'Operation :: DecodeJson a => DecodeJson (Array'Operation a) where
+  decodeJson x = object <|> string
+    where
+      string = do
+        s <- decodeJson x
+        case unit of
+          _ | s == "reverse" -> pure ReverseArray
+            | s == "init" -> pure InitArray
+            | s == "tail" -> pure TailArray
+            | otherwise -> Left "Not a Array"
+      object = do
+        o <- decodeJson x
+        Array'Monoid <$> o .: "monoid"
+instance dynamicByteLengthArray'Operation :: DynamicByteLength a => DynamicByteLength (Array'Operation a) where
+  byteLength op = case op of
+    Array'Monoid op -> (\l -> l + 1) <$> byteLength op
+    _ -> pure 1
+instance encodeArrayBufferArray'Operation :: EncodeArrayBuffer a => EncodeArrayBuffer (Array'Operation a) where
+  putArrayBuffer b o op = case op of
+    ReverseArray -> putArrayBuffer b o $ Int8 0
+    InitArray -> putArrayBuffer b o $ Int8 1
+    TailArray -> putArrayBuffer b o $ Int8 2
+    Array'Monoid op' -> do
+      mL <- putArrayBuffer b o $ Int8 3
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) op'
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferArray'Operation :: (DynamicByteLength a, DecodeArrayBuffer a) => DecodeArrayBuffer (Array'Operation a) where
   readArrayBuffer b o = do
     mx <- readArrayBuffer b o
     case mx of
@@ -261,16 +284,22 @@ instance decodeArrayBufferArray'Operation :: DecodeArrayBuffer Array'Operation w
         | x == 0 -> pure (Just ReverseArray)
         | x == 1 -> pure (Just InitArray)
         | x == 2 -> pure (Just TailArray)
+        | x == 3 -> do
+          mOp <- readArrayBuffer b (o + 1)
+          case mOp of
+            Nothing -> pure Nothing
+            Just op -> pure (Just (Array'Monoid op))
         | otherwise -> pure Nothing
-instance symbioteOperationArray' :: SymbioteOperation (Array' a) (Array' a) Array'Operation where
-  perform op (Array' x) = case op of
-    ReverseArray -> Array' $ Array.reverse x
-    InitArray -> Array' $ case Array.init x of
+instance symbioteOperationArray' :: (Eq a) => SymbioteOperation (Array' a) (Either Boolean (Array' a)) (Array'Operation a) where
+  perform op x'@(Array' x) = case op of
+    ReverseArray -> Right $ Array' $ Array.reverse x
+    InitArray -> Right $ Array' $ case Array.init x of
       Nothing -> []
       Just y -> y
-    TailArray -> Array' $ case Array.tail x of
+    TailArray -> Right $ Array' $ case Array.tail x of
       Nothing -> []
       Just y -> y
+    Array'Monoid op' -> Left $ perform op' $ AbidesMonoid x'
 
 
 newtype Json' = Json' Json
