@@ -6,8 +6,6 @@ import Test.Serialization.Symbiote
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 import Test.Serialization.Symbiote.Abides
-  ( AbidesEuclideanRing (..), AbidesEuclideanRingOperation, AbidesField (..), AbidesFieldOperation
-  , AbidesMonoid (..), AbidesMonoidOperation)
 
 import Prelude
 import Data.Generic.Rep (class Generic)
@@ -34,23 +32,40 @@ import Data.UInt (UInt)
 import Control.Alternative ((<|>))
 import Foreign.Object (fromFoldable) as Object
 import Effect (Effect)
+import Effect.Class (liftEffect)
 import Effect.Aff (Aff, launchAff_)
 import Effect.Console (error)
 import Effect.Unsafe (unsafePerformEffect)
 import Test.Spec (describe, it)
 import Test.Spec.Runner (runSpec', defaultConfig)
 import Test.Spec.Reporter.Console (consoleReporter)
-import Test.QuickCheck (class Arbitrary, arbitrary)
+import Test.QuickCheck (class Arbitrary, arbitrary, quickCheck)
 import Test.QuickCheck.Gen (Gen, oneOf, elements, sized, resize, arrayOf)
 import Type.Proxy (Proxy (..))
 
 
 main :: Effect Unit
 main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporter] do
-  describe "All Tests" do
+  describe "Symbiote Sanity Checks" do
     simpleTests
     arraybufferTests
     jsonTests
+  describe "Local Isomorphisms" do
+    describe "Json" do
+      let go :: forall a. Arbitrary a => EncodeJson a => DecodeJson a => Eq a => String -> Proxy a -> _
+          go n p = it n (liftEffect (quickCheck (jsonIso p)))
+      describe "Abides" do
+        go "AbidesSemigroup (Array' Int')" (Proxy :: Proxy (AbidesSemigroup (Array' Int')))
+        go "AbidesMonoid (Array' Int')" (Proxy :: Proxy (AbidesMonoid (Array' Int')))
+        go "AbidesEq Int'" (Proxy :: Proxy (AbidesEq Int'))
+        go "AbidesOrd Int'" (Proxy :: Proxy (AbidesOrd Int'))
+        go "AbidesEnum Int'" (Proxy :: Proxy (AbidesEnum Int'))
+        go "AbidesSemiring Int'" (Proxy :: Proxy (AbidesSemiring Int'))
+        go "AbidesRing Int'" (Proxy :: Proxy (AbidesRing Int'))
+        go "AbidesCommutativeRing Int'" (Proxy :: Proxy (AbidesCommutativeRing Int'))
+        go "AbidesDivisionRing Int'" (Proxy :: Proxy (AbidesDivisionRing Int'))
+        go "AbidesEuclideanRing Int'" (Proxy :: Proxy (AbidesEuclideanRing Int'))
+        go "AbidesField Int'" (Proxy :: Proxy (AbidesField Int'))
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
@@ -259,7 +274,7 @@ instance decodeJsonArray'Operation :: DecodeJson a => DecodeJson (Array'Operatio
         Array'Monoid <$> o .: "monoid"
 instance dynamicByteLengthArray'Operation :: DynamicByteLength a => DynamicByteLength (Array'Operation a) where
   byteLength op = case op of
-    Array'Monoid op -> (\l -> l + 1) <$> byteLength op
+    Array'Monoid op' -> (\l -> l + 1) <$> byteLength op'
     _ -> pure 1
 instance encodeArrayBufferArray'Operation :: EncodeArrayBuffer a => EncodeArrayBuffer (Array'Operation a) where
   putArrayBuffer b o op = case op of
@@ -364,3 +379,23 @@ instance symbioteJson' :: Symbiote Json' Json' Json'Operation (AV Uint8 UInt) wh
       Just s
         | s == "id" -> pure (Just IdJson')
         | otherwise -> pure Nothing
+
+
+
+jsonIso :: forall a
+         . EncodeJson a
+        => DecodeJson a
+        => Eq a => Proxy a -> a -> Boolean
+jsonIso Proxy x = decodeJson (encodeJson x) == Right x
+
+
+cerealIso :: forall a
+           . EncodeArrayBuffer a
+          => DecodeArrayBuffer a
+          => DynamicByteLength a
+          => Eq a
+          => Proxy a -> a -> Boolean
+cerealIso Proxy x = unsafePerformEffect do
+  buf <- encodeArrayBuffer x
+  mY <- decodeArrayBuffer buf
+  pure (mY == Just x)
