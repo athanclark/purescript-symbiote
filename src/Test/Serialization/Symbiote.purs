@@ -22,11 +22,16 @@ import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
 import Data.Tuple (Tuple (..))
 import Data.Either (Either (Left))
+import Data.UInt (fromInt)
 import Data.NonEmpty (NonEmpty (..))
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Eq (genericEq)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson, (.:), (:=), jsonEmptyObject, (~>))
+import Data.ArrayBuffer.Class
+  (class DynamicByteLength, byteLength, class EncodeArrayBuffer, putArrayBuffer, class DecodeArrayBuffer
+  , readArrayBuffer)
+import Data.ArrayBuffer.Class.Types (Uint8 (..), Int32BE (..))
 import Control.Alternative ((<|>))
 import Control.Monad.State (modify)
 import Control.Monad.Trans.Control (class MonadBaseControl, liftBaseWith)
@@ -152,6 +157,78 @@ instance decodeJsonGenerating :: DecodeJson s => DecodeJson (Generating s) where
             badResult = BadResult <$> o .: "badResult"
             noParseOperated = GeneratingNoParseOperated <$> o .: "noParseOperated"
         generated <|> badResult <|> noParseOperated
+instance dynamicByteLengthGenerating :: DynamicByteLength s => DynamicByteLength (Generating s) where
+  byteLength x = case x of
+    Generated {value,operation} -> (\a b -> a + b + 1) <$> byteLength value <*> byteLength operation
+    BadResult y -> (\l -> l + 1) <$> byteLength y
+    YourTurn -> pure 1
+    ImFinished -> pure 1
+    GeneratingNoParseOperated y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferGenerating :: EncodeArrayBuffer s => EncodeArrayBuffer (Generating s) where
+  putArrayBuffer b o x = case x of
+    Generated {value,operation} -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) value
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') operation
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    BadResult y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    YourTurn -> putArrayBuffer b o (Uint8 (fromInt 2))
+    ImFinished -> putArrayBuffer b o (Uint8 (fromInt 3))
+    GeneratingNoParseOperated y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 4))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferGenerating :: (DynamicByteLength s, DecodeArrayBuffer s) => DecodeArrayBuffer (Generating s) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 c)
+        | c == fromInt 0 -> do
+          mValue <- readArrayBuffer b (o + 1)
+          case mValue of
+            Nothing -> pure Nothing
+            Just value -> do
+              l <- byteLength value
+              mOperation <- readArrayBuffer b (o + 1 + l)
+              case mOperation of
+                Nothing -> pure Nothing
+                Just operation -> pure (Just (Generated {value,operation}))
+        | c == fromInt 1 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (BadResult y))
+        | c == fromInt 2 -> pure (Just YourTurn)
+        | c == fromInt 3 -> pure (Just ImFinished)
+        | c == fromInt 4 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (GeneratingNoParseOperated y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
+
 
 
 -- | Messages sent by a peer during their operating phase
@@ -181,6 +258,62 @@ instance decodeJsonOperating :: DecodeJson s => DecodeJson (Operating s) where
         noParseValue = OperatingNoParseValue <$> o .: "noParseValue"
         noParseOperation = OperatingNoParseOperation <$> o .: "noParseOperation"
     operated <|> noParseValue <|> noParseOperation
+instance dynamicByteLengthOperating :: DynamicByteLength s => DynamicByteLength (Operating s) where
+  byteLength x = case x of
+    Operated y -> (\l -> l + 1) <$> byteLength y
+    OperatingNoParseValue y -> (\l -> l + 1) <$> byteLength y
+    OperatingNoParseOperation y -> (\l -> l + 1) <$> byteLength y
+instance encodeArrayBufferOperating :: EncodeArrayBuffer s => EncodeArrayBuffer (Operating s) where
+  putArrayBuffer b o x = case x of
+    Operated y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    OperatingNoParseValue y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    OperatingNoParseOperation y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) y
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+instance decodeArrayBufferOperating :: (DynamicByteLength s, DecodeArrayBuffer s) => DecodeArrayBuffer (Operating s) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 c)
+        | c == fromInt 0 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (Operated y))
+        | c == fromInt 1 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (OperatingNoParseValue y))
+        | c == fromInt 2 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (OperatingNoParseOperation y))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
 
 
 -- | Messages sent by the first peer
@@ -216,6 +349,81 @@ instance decodeJsonFirst :: DecodeJson s => DecodeJson (First s) where
         firstGenerating = FirstGenerating <$> o .: "firstGenerating"
         firstOperating = FirstOperating <$> o .: "firstOperating"
     availableTopics <|> firstGenerating <|> firstOperating
+instance dynamicByteLengthFirst :: DynamicByteLength s => DynamicByteLength (First s) where
+  byteLength x = case x of
+    AvailableTopics y -> (\l -> l + 1) <$> byteLength (map Int32BE y)
+    FirstGenerating {topic,generating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating
+    FirstOperating {topic,operating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating
+instance encodeArrayBufferFirst :: (EncodeArrayBuffer s) => EncodeArrayBuffer (First s) where
+  putArrayBuffer b o x = case x of
+    AvailableTopics y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) (map Int32BE y)
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    FirstGenerating {topic,generating} -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 1))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) topic
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') generating
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    FirstOperating {topic,operating} -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) topic
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') operating
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+instance decodeArrayBufferFirst :: (DynamicByteLength s, DecodeArrayBuffer s) => DecodeArrayBuffer (First s) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 c)
+        | c == fromInt 0 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (AvailableTopics (map (\(Int32BE i) -> i) y)))
+        | c == fromInt 1 -> do
+          mTopic <- readArrayBuffer b (o + 1)
+          case mTopic of
+            Nothing -> pure Nothing
+            Just topic -> do
+              l <- byteLength topic
+              mGenerating <- readArrayBuffer b (o + 1 + l)
+              case mGenerating of
+                Nothing -> pure Nothing
+                Just generating -> pure (Just (FirstGenerating {topic,generating}))
+        | c == fromInt 2 -> do
+          mTopic <- readArrayBuffer b (o + 1)
+          case mTopic of
+            Nothing -> pure Nothing
+            Just topic -> do
+              l <- byteLength topic
+              mOperating <- readArrayBuffer b (o + 1 + l)
+              case mOperating of
+                Nothing -> pure Nothing
+                Just operating -> pure (Just (FirstOperating {topic,operating}))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
+
 
 getFirstGenerating :: forall s. First s -> Maybe {topic :: Topic, generating :: Generating s}
 getFirstGenerating x = case x of
@@ -269,6 +477,84 @@ instance decodeJsonSecond :: DecodeJson s => DecodeJson (Second s) where
             secondOperating = SecondOperating <$> o .: "secondOperating"
             secondGenerating = SecondGenerating <$> o .: "secondGenerating"
         badTopics <|> secondOperating <|> secondGenerating
+instance dynamicByteLengthSecond :: DynamicByteLength s => DynamicByteLength (Second s) where
+  byteLength x = case x of
+    BadTopics y -> (\l -> l + 1) <$> byteLength (map Int32BE y)
+    Start -> pure 1
+    SecondOperating {topic,operating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating
+    SecondGenerating {topic,generating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating
+instance encodeArrayBufferSecond :: EncodeArrayBuffer s => EncodeArrayBuffer (Second s) where
+  putArrayBuffer b o x = case x of
+    BadTopics y -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 0))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) (map Int32BE y)
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> pure (Just (l + l'))
+    Start -> putArrayBuffer b o (Uint8 (fromInt 1))
+    SecondOperating {topic,operating} -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 2))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) topic
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') operating
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+    SecondGenerating {topic,generating} -> do
+      mL <- putArrayBuffer b o (Uint8 (fromInt 3))
+      case mL of
+        Nothing -> pure Nothing
+        Just l -> do
+          mL' <- putArrayBuffer b (o + l) topic
+          case mL' of
+            Nothing -> pure (Just l)
+            Just l' -> do
+              mL'' <- putArrayBuffer b (o + l + l') generating
+              case mL'' of
+                Nothing -> pure (Just (l + l'))
+                Just l'' -> pure (Just (l + l' + l''))
+instance decodeArrayBufferSecond :: (DynamicByteLength s, DecodeArrayBuffer s) => DecodeArrayBuffer (Second s) where
+  readArrayBuffer b o = do
+    mC <- readArrayBuffer b o
+    case mC of
+      Just (Uint8 c)
+        | c == fromInt 0 -> do
+          mY <- readArrayBuffer b (o + 1)
+          case mY of
+            Nothing -> pure Nothing
+            Just y -> pure (Just (BadTopics (map (\(Int32BE i) -> i) y)))
+        | c == fromInt 1 -> pure (Just Start)
+        | c == fromInt 2 -> do
+          mTopic <- readArrayBuffer b (o + 1)
+          case mTopic of
+            Nothing -> pure Nothing
+            Just topic -> do
+              l <- byteLength topic
+              mOperating <- readArrayBuffer b (o + 1 + l)
+              case mOperating of
+                Nothing -> pure Nothing
+                Just operating -> pure (Just (SecondOperating {topic,operating}))
+        | c == fromInt 3 -> do
+          mTopic <- readArrayBuffer b (o + 1)
+          case mTopic of
+            Nothing -> pure Nothing
+            Just topic -> do
+              l <- byteLength topic
+              mGenerating <- readArrayBuffer b (o + 1 + l)
+              case mGenerating of
+                Nothing -> pure Nothing
+                Just generating -> pure (Just (SecondGenerating {topic,generating}))
+        | otherwise -> pure Nothing
+      Nothing -> pure Nothing
+
 
 getSecondGenerating :: forall s. Second s -> Maybe {topic :: Topic, generating :: Generating s}
 getSecondGenerating x = case x of

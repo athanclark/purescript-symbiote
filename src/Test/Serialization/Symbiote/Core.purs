@@ -7,7 +7,7 @@ import Data.Map (empty) as Map
 import Data.Int (toNumber) as Int
 import Data.Generic.Rep (class Generic)
 import Data.Argonaut (class EncodeJson, class DecodeJson)
-import Data.ArrayBuffer.Class (class EncodeArrayBuffer, class DecodeArrayBuffer)
+import Data.ArrayBuffer.Class (class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength)
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Control.Monad.State (StateT, execStateT)
 import Effect.Ref (Ref)
@@ -49,6 +49,7 @@ derive newtype instance encodeJsonTopic :: EncodeJson Topic
 derive newtype instance decodeJsonTopic :: DecodeJson Topic
 derive newtype instance encodeArrayBufferTopic :: EncodeArrayBuffer Topic
 derive newtype instance decodeArrayBufferTopic :: DecodeArrayBuffer Topic
+derive newtype instance dynamicByteLengthTopic :: DynamicByteLength Topic
 
 -- | Protocol state for a particular topic
 data SymbioteProtocol a s

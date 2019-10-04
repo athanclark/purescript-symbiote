@@ -72,6 +72,27 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         go "First Int'" (Proxy :: Proxy (First Int'))
         go "Second Int'" (Proxy :: Proxy (Second Int'))
         go "Topic" (Proxy :: Proxy Topic)
+    describe "ArrayBuffer" do
+      let go :: forall a. Arbitrary a => EncodeArrayBuffer a => DecodeArrayBuffer a => DynamicByteLength a => Eq a => String -> Proxy a -> _
+          go n p = it n (liftEffect (quickCheck (cerealIso p)))
+      describe "Abides" do
+        go "AbidesSemigroup (Array' Int')" (Proxy :: Proxy (AbidesSemigroup (Array' Int')))
+        go "AbidesMonoid (Array' Int')" (Proxy :: Proxy (AbidesMonoid (Array' Int')))
+        go "AbidesEq Int'" (Proxy :: Proxy (AbidesEq Int'))
+        go "AbidesOrd Int'" (Proxy :: Proxy (AbidesOrd Int'))
+        go "AbidesEnum Int'" (Proxy :: Proxy (AbidesEnum Int'))
+        go "AbidesSemiring Int'" (Proxy :: Proxy (AbidesSemiring Int'))
+        go "AbidesRing Int'" (Proxy :: Proxy (AbidesRing Int'))
+        go "AbidesCommutativeRing Int'" (Proxy :: Proxy (AbidesCommutativeRing Int'))
+        go "AbidesDivisionRing Int'" (Proxy :: Proxy (AbidesDivisionRing Int'))
+        go "AbidesEuclideanRing Int'" (Proxy :: Proxy (AbidesEuclideanRing Int'))
+        go "AbidesField Int'" (Proxy :: Proxy (AbidesField Int'))
+      describe "Symbiote" do
+        go "Generating Int'" (Proxy :: Proxy (Generating Int'))
+        go "Operating Int'" (Proxy :: Proxy (Operating Int'))
+        go "First Int'" (Proxy :: Proxy (First Int'))
+        go "Second Int'" (Proxy :: Proxy (Second Int'))
+        go "Topic" (Proxy :: Proxy Topic)
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
