@@ -93,6 +93,8 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         go "First Int'" (Proxy :: Proxy (First Int'))
         go "Second Int'" (Proxy :: Proxy (Second Int'))
         go "Topic" (Proxy :: Proxy Topic)
+  describe "WebSocket Client" do
+    
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)

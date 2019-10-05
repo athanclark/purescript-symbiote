@@ -331,11 +331,11 @@ instance arbitraryFirst :: Arbitrary s => Arbitrary (First s) where
     ( (AvailableTopics <<< (\x -> Map.fromFoldable (x :: Array _)))
       <$> arbitrary)
     [ do  topic <- arbitrary
-          generating <- arbitrary
-          pure $ FirstGenerating {topic,generating}
+          generating' <- arbitrary
+          pure $ FirstGenerating {topic,generating:generating'}
     , do  topic <- arbitrary
-          operating <- arbitrary
-          pure $ FirstOperating {topic,operating}
+          operating' <- arbitrary
+          pure $ FirstOperating {topic,operating:operating'}
     ]
 instance encodeJsonFirst :: EncodeJson s => EncodeJson (First s) where
   encodeJson x = case x of
@@ -352,8 +352,8 @@ instance decodeJsonFirst :: DecodeJson s => DecodeJson (First s) where
 instance dynamicByteLengthFirst :: DynamicByteLength s => DynamicByteLength (First s) where
   byteLength x = case x of
     AvailableTopics y -> (\l -> l + 1) <$> byteLength (map Int32BE y)
-    FirstGenerating {topic,generating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating
-    FirstOperating {topic,operating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating
+    FirstGenerating {topic,generating:generating'} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating'
+    FirstOperating {topic,operating:operating'} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating'
 instance encodeArrayBufferFirst :: (EncodeArrayBuffer s) => EncodeArrayBuffer (First s) where
   putArrayBuffer b o x = case x of
     AvailableTopics y -> do
@@ -365,7 +365,7 @@ instance encodeArrayBufferFirst :: (EncodeArrayBuffer s) => EncodeArrayBuffer (F
           case mL' of
             Nothing -> pure (Just l)
             Just l' -> pure (Just (l + l'))
-    FirstGenerating {topic,generating} -> do
+    FirstGenerating {topic,generating:generating'} -> do
       mL <- putArrayBuffer b o (Uint8 (fromInt 1))
       case mL of
         Nothing -> pure Nothing
@@ -374,11 +374,11 @@ instance encodeArrayBufferFirst :: (EncodeArrayBuffer s) => EncodeArrayBuffer (F
           case mL' of
             Nothing -> pure (Just l)
             Just l' -> do
-              mL'' <- putArrayBuffer b (o + l + l') generating
+              mL'' <- putArrayBuffer b (o + l + l') generating'
               case mL'' of
                 Nothing -> pure (Just (l + l'))
                 Just l'' -> pure (Just (l + l' + l''))
-    FirstOperating {topic,operating} -> do
+    FirstOperating {topic,operating:operating'} -> do
       mL <- putArrayBuffer b o (Uint8 (fromInt 2))
       case mL of
         Nothing -> pure Nothing
@@ -387,7 +387,7 @@ instance encodeArrayBufferFirst :: (EncodeArrayBuffer s) => EncodeArrayBuffer (F
           case mL' of
             Nothing -> pure (Just l)
             Just l' -> do
-              mL'' <- putArrayBuffer b (o + l + l') operating
+              mL'' <- putArrayBuffer b (o + l + l') operating'
               case mL'' of
                 Nothing -> pure (Just (l + l'))
                 Just l'' -> pure (Just (l + l' + l''))
@@ -410,7 +410,7 @@ instance decodeArrayBufferFirst :: (DynamicByteLength s, DecodeArrayBuffer s) =>
               mGenerating <- readArrayBuffer b (o + 1 + l)
               case mGenerating of
                 Nothing -> pure Nothing
-                Just generating -> pure (Just (FirstGenerating {topic,generating}))
+                Just generating' -> pure (Just (FirstGenerating {topic,generating:generating'}))
         | c == fromInt 2 -> do
           mTopic <- readArrayBuffer b (o + 1)
           case mTopic of
@@ -420,7 +420,7 @@ instance decodeArrayBufferFirst :: (DynamicByteLength s, DecodeArrayBuffer s) =>
               mOperating <- readArrayBuffer b (o + 1 + l)
               case mOperating of
                 Nothing -> pure Nothing
-                Just operating -> pure (Just (FirstOperating {topic,operating}))
+                Just operating' -> pure (Just (FirstOperating {topic,operating:operating'}))
         | otherwise -> pure Nothing
       Nothing -> pure Nothing
 
@@ -451,11 +451,11 @@ instance arbitrarySecond :: Arbitrary s => Arbitrary (Second s) where
   arbitrary = oneOf $ NonEmpty (pure Start)
     [ BadTopics <<< (\x -> Map.fromFoldable (x :: Array _)) <$> arbitrary
     , do  topic <- arbitrary
-          operating <- arbitrary
-          pure (SecondOperating {topic,operating})
+          operating' <- arbitrary
+          pure (SecondOperating {topic,operating:operating'})
     , do  topic <- arbitrary
-          generating <- arbitrary
-          pure (SecondGenerating {topic,generating})
+          generating' <- arbitrary
+          pure (SecondGenerating {topic,generating:generating'})
     ]
 instance encodeJsonSecond :: EncodeJson s => EncodeJson (Second s) where
   encodeJson x = case x of
@@ -481,8 +481,8 @@ instance dynamicByteLengthSecond :: DynamicByteLength s => DynamicByteLength (Se
   byteLength x = case x of
     BadTopics y -> (\l -> l + 1) <$> byteLength (map Int32BE y)
     Start -> pure 1
-    SecondOperating {topic,operating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating
-    SecondGenerating {topic,generating} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating
+    SecondOperating {topic,operating:operating'} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength operating'
+    SecondGenerating {topic,generating:generating'} -> (\a b -> a + b + 1) <$> byteLength topic <*> byteLength generating'
 instance encodeArrayBufferSecond :: EncodeArrayBuffer s => EncodeArrayBuffer (Second s) where
   putArrayBuffer b o x = case x of
     BadTopics y -> do
@@ -495,7 +495,7 @@ instance encodeArrayBufferSecond :: EncodeArrayBuffer s => EncodeArrayBuffer (Se
             Nothing -> pure (Just l)
             Just l' -> pure (Just (l + l'))
     Start -> putArrayBuffer b o (Uint8 (fromInt 1))
-    SecondOperating {topic,operating} -> do
+    SecondOperating {topic,operating:operating'} -> do
       mL <- putArrayBuffer b o (Uint8 (fromInt 2))
       case mL of
         Nothing -> pure Nothing
@@ -504,11 +504,11 @@ instance encodeArrayBufferSecond :: EncodeArrayBuffer s => EncodeArrayBuffer (Se
           case mL' of
             Nothing -> pure (Just l)
             Just l' -> do
-              mL'' <- putArrayBuffer b (o + l + l') operating
+              mL'' <- putArrayBuffer b (o + l + l') operating'
               case mL'' of
                 Nothing -> pure (Just (l + l'))
                 Just l'' -> pure (Just (l + l' + l''))
-    SecondGenerating {topic,generating} -> do
+    SecondGenerating {topic,generating:generating'} -> do
       mL <- putArrayBuffer b o (Uint8 (fromInt 3))
       case mL of
         Nothing -> pure Nothing
@@ -517,7 +517,7 @@ instance encodeArrayBufferSecond :: EncodeArrayBuffer s => EncodeArrayBuffer (Se
           case mL' of
             Nothing -> pure (Just l)
             Just l' -> do
-              mL'' <- putArrayBuffer b (o + l + l') generating
+              mL'' <- putArrayBuffer b (o + l + l') generating'
               case mL'' of
                 Nothing -> pure (Just (l + l'))
                 Just l'' -> pure (Just (l + l' + l''))
@@ -541,7 +541,7 @@ instance decodeArrayBufferSecond :: (DynamicByteLength s, DecodeArrayBuffer s) =
               mOperating <- readArrayBuffer b (o + 1 + l)
               case mOperating of
                 Nothing -> pure Nothing
-                Just operating -> pure (Just (SecondOperating {topic,operating}))
+                Just operating' -> pure (Just (SecondOperating {topic,operating:operating'}))
         | c == fromInt 3 -> do
           mTopic <- readArrayBuffer b (o + 1)
           case mTopic of
@@ -551,7 +551,7 @@ instance decodeArrayBufferSecond :: (DynamicByteLength s, DecodeArrayBuffer s) =
               mGenerating <- readArrayBuffer b (o + 1 + l)
               case mGenerating of
                 Nothing -> pure Nothing
-                Just generating -> pure (Just (SecondGenerating {topic,generating}))
+                Just generating' -> pure (Just (SecondGenerating {topic,generating:generating'}))
         | otherwise -> pure Nothing
       Nothing -> pure Nothing
 
