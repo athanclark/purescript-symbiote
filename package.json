@@ -1,0 +1,25 @@
+{
+  "name": "purescript-symbiote",
+  "version": "0.0.0",
+  "description": "This project aims to be a network agnostic and data format agnostic serialization verifier - it's main purpose is to verify that _data_, _operations_ on that data, and _serialization_ of that data is all consistent for multiple platforms. This project defines a trivial protocol that can be re-implemented in any platform, over any network medium.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "pulp test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/athanclark/purescript-symbiote.git"
+  },
+  "author": "Athan Clark",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/athanclark/purescript-symbiote/issues"
+  },
+  "homepage": "https://github.com/athanclark/purescript-symbiote#readme",
+  "devDependencies": {
+    "ws": "^7.1.2"
+  }
+}

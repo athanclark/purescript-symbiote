@@ -6,6 +6,7 @@ import Test.Serialization.Symbiote
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
 import Test.Serialization.Symbiote.Abides
+import Test.Serialization.Symbiote.WebSocket (secondPeerWebSocketJson, Debug (..))
 
 import Prelude
 import Data.Generic.Rep (class Generic)
@@ -94,7 +95,15 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
         go "Second Int'" (Proxy :: Proxy (Second Int'))
         go "Topic" (Proxy :: Proxy Topic)
   describe "WebSocket Client" do
-    
+    it "Json" $
+      let tests :: SymbioteT ShowJson Aff Unit
+          tests = do
+            -- register (Topic "Generating Boolean") 100 (Proxy :: Proxy (Generating Boolean))
+            -- register (Topic "Operating Boolean") 100 (Proxy :: Proxy (Operating Boolean))
+            -- register (Topic "First Boolean") 100 (Proxy :: Proxy (First Boolean))
+            -- register (Topic "Second Boolean") 100 (Proxy :: Proxy (Second Boolean))
+            register (Topic "Topic") 100 (Proxy :: Proxy {value :: ToArgonaut Topic', output :: ToArgonaut Topic', operation :: ToArgonaut TopicOperation})
+      in  secondPeerWebSocketJson "ws://localhost:3000/" Debug tests
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
@@ -428,3 +437,30 @@ cerealIso Proxy x = unsafePerformEffect do
   buf <- encodeArrayBuffer x
   mY <- decodeArrayBuffer buf
   pure (mY == Just x)
+
+
+
+-- internal instances
+newtype Topic' = Topic' Topic
+derive instance genericTopic' :: Generic Topic' _
+derive newtype instance eqTopic' :: Eq Topic'
+derive newtype instance showTopic' :: Show Topic'
+derive newtype instance arbitraryTopic' :: Arbitrary Topic'
+derive newtype instance encodeJsonTopic' :: EncodeJson Topic'
+derive newtype instance decodeJsonTopic' :: DecodeJson Topic'
+data TopicOperation = TopicId
+derive instance genericTopicOperation :: Generic TopicOperation _
+instance showTopicOperation :: Show TopicOperation where
+  show = genericShow
+instance eqTopicOperation :: Eq TopicOperation where
+  eq = genericEq
+instance arbitraryTopicOperation :: Arbitrary TopicOperation where
+  arbitrary = pure TopicId
+instance encodeJsonTopicOperation :: EncodeJson TopicOperation where
+  encodeJson TopicId = encodeJson "id"
+instance decodeJsonTopicOperation :: DecodeJson TopicOperation where
+  decodeJson json = do
+    s <- decodeJson json
+    if s == "id" then pure TopicId else Left "TopicOperation"
+instance symbioteOperationTopicOperation :: SymbioteOperation Topic' Topic' TopicOperation where
+  perform TopicId x = x

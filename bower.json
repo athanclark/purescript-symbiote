@@ -21,7 +21,9 @@
     "purescript-argonaut": "^6.0.0",
     "purescript-arraybuffer-class": "v0.1.0",
     "purescript-abides": "^0.0.0",
-    "purescript-debug": "^4.0.0"
+    "purescript-debug": "^4.0.0",
+    "purescript-websocket-moderate": "^5.0.0",
+    "purescript-websocket-moderate-extra": "^0.0.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0",

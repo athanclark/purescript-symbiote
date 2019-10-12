@@ -50,3 +50,5 @@ derive instance genericShowJson :: Generic ShowJson _
 derive newtype instance eqShowJson :: Eq ShowJson
 instance showShowJson :: Show ShowJson where
   show (ShowJson x) = Json.stringify x
+derive newtype instance encodeJsonShowJson :: Json.EncodeJson ShowJson
+derive newtype instance decodeJsonShowJson :: Json.DecodeJson ShowJson

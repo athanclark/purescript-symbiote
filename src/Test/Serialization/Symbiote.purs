@@ -17,7 +17,7 @@ import Test.Serialization.Symbiote.Core
 
 import Prelude
 import Data.Map (Map)
-import Data.Map (insert, keys, lookup, fromFoldable) as Map
+import Data.Map (insert, keys, lookup, fromFoldable, toUnfoldable) as Map
 import Data.Set (findMax, delete) as Set
 import Data.Maybe (Maybe (..))
 import Data.Tuple (Tuple (..))
@@ -42,6 +42,9 @@ import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Ref (Ref)
 import Effect.Ref (new, read, write) as Ref
 import Effect.Console (log, error, warn)
+import Effect.Exception (throw)
+import Foreign.Object (Object)
+import Foreign.Object (toUnfoldable, fromFoldable) as Object
 import Queue.One (Queue, READ, WRITE)
 import Queue.One (new, put, draw) as Queue
 import Type.Proxy (Proxy (..))
@@ -339,13 +342,13 @@ instance arbitraryFirst :: Arbitrary s => Arbitrary (First s) where
     ]
 instance encodeJsonFirst :: EncodeJson s => EncodeJson (First s) where
   encodeJson x = case x of
-    AvailableTopics y -> "availableTopics" := y ~> jsonEmptyObject
+    AvailableTopics y -> "availableTopics" := mapToObject y ~> jsonEmptyObject
     FirstGenerating y -> "firstGenerating" := y ~> jsonEmptyObject
     FirstOperating y -> "firstOperating" := y ~> jsonEmptyObject
 instance decodeJsonFirst :: DecodeJson s => DecodeJson (First s) where
   decodeJson json = do
     o <- decodeJson json
-    let availableTopics = AvailableTopics <$> o .: "availableTopics"
+    let availableTopics = AvailableTopics <<< objectToMap <$> o .: "availableTopics"
         firstGenerating = FirstGenerating <$> o .: "firstGenerating"
         firstOperating = FirstOperating <$> o .: "firstOperating"
     availableTopics <|> firstGenerating <|> firstOperating
@@ -459,7 +462,7 @@ instance arbitrarySecond :: Arbitrary s => Arbitrary (Second s) where
     ]
 instance encodeJsonSecond :: EncodeJson s => EncodeJson (Second s) where
   encodeJson x = case x of
-    BadTopics y -> "badTopics" := y ~> jsonEmptyObject
+    BadTopics y -> "badTopics" := mapToObject y ~> jsonEmptyObject
     Start -> encodeJson "start"
     SecondOperating y -> "secondOperating" := y ~> jsonEmptyObject
     SecondGenerating y -> "secondGenerating" := y ~> jsonEmptyObject
@@ -473,7 +476,7 @@ instance decodeJsonSecond :: DecodeJson s => DecodeJson (Second s) where
             | otherwise -> Left "Second s"
       object = do
         o <- decodeJson json
-        let badTopics = BadTopics <$> o .: "badTopics"
+        let badTopics = BadTopics <<< objectToMap <$> o .: "badTopics"
             secondOperating = SecondOperating <$> o .: "secondOperating"
             secondGenerating = SecondGenerating <$> o .: "secondGenerating"
         badTopics <|> secondOperating <|> secondGenerating
@@ -607,7 +610,7 @@ defaultFailure :: forall them s
 defaultFailure f = do
   warn "Failure:"
   traceM f
-  error "Failed."
+  throw "Failed."
 
 -- | Via putStrLn
 defaultProgress :: Topic -> Number -> Effect Unit
@@ -983,3 +986,16 @@ simpleTest' onSuccess onFailureSecond onFailureFirst onProgress suite = do
     encodeAndSendChan chan x = liftEffect (Queue.put chan x)
     receiveAndDecodeChan :: forall a. Queue (read :: READ, write :: WRITE) a -> m a
     receiveAndDecodeChan chan = liftAff (Queue.draw chan)
+
+
+objectToMap :: Object Int -> Map Topic Int
+objectToMap = Map.fromFoldable <<< go
+  where
+    go :: Object Int -> Array (Tuple Topic Int)
+    go = map (\(Tuple k v) -> Tuple (Topic k) v) <<< Object.toUnfoldable
+
+mapToObject :: Map Topic Int -> Object Int
+mapToObject = Object.fromFoldable <<< go
+  where
+    go :: Map Topic Int -> Array (Tuple String Int)
+    go = map (\(Tuple (Topic k) v) -> Tuple k v) <<< Map.toUnfoldable
