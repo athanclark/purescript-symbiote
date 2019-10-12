@@ -1,7 +1,7 @@
 module Test.Serialization.Symbiote.WebSocket where
 
 import Test.Serialization.Symbiote
-  (firstPeer, secondPeer, SymbioteT, defaultFailure, defaultProgress, Topic, Failure)
+  (firstPeer, secondPeer, SymbioteT, defaultFailure, defaultProgress, nullProgress, Topic, Failure)
 
 import Prelude
 import Effect (Effect)
@@ -28,7 +28,7 @@ import Debug.Trace (traceM)
 
 
 
-data Debug = Debug | NoDebug
+data Debug = FullDebug | Percent | NoDebug
 
 
 secondPeerWebSocketArrayBuffer :: forall m stM s s'
@@ -115,29 +115,31 @@ peerWebSocketArrayBuffer :: forall m stM s them me
                            )
                          -> SymbioteT s m Unit
                          -> m Unit
-peerWebSocketArrayBuffer host debug = peerWebSocket \app ->
-  newWebSocketBinary host []
-    -- FIXME use AV?
-    -- $ ( case debug of
-    --       Debug -> logConsole
-    --       NoDebug -> identity
-    --   )
-    $ dimap' receive send app
+peerWebSocketArrayBuffer host debug = peerWebSocket go debug
   where
-    receive :: ArrayBuffer -> Effect (them s)
-    receive buf = do
-      mX <- decodeArrayBuffer buf
-      case mX of
-        Nothing -> do
-          log "Can't parse buffer:"
-          traceM buf
-          throw "Failed."
-        Just x -> pure x
+    go app =
+      newWebSocketBinary host []
+        -- FIXME use AV?
+        -- $ ( case debug of
+        --       Debug -> logConsole
+        --       NoDebug -> identity
+        --   )
+        $ dimap' receive send app
+      where
+        receive :: ArrayBuffer -> Effect (them s)
+        receive buf = do
+          mX <- decodeArrayBuffer buf
+          case mX of
+            Nothing -> do
+              log "Can't parse buffer:"
+              traceM buf
+              throw "Failed."
+            Just x -> pure x
 
-    send :: me s -> ArrayBuffer
-    send x = unsafePerformEffect do
-      buf <- encodeArrayBuffer x
-      pure buf
+        send :: me s -> ArrayBuffer
+        send x = unsafePerformEffect do
+          buf <- encodeArrayBuffer x
+          pure buf
 
 
 peerWebSocketJson :: forall m stM s them me
@@ -163,12 +165,13 @@ peerWebSocketJson :: forall m stM s them me
 peerWebSocketJson host debug = peerWebSocket
   ( newWebSocketString host []
     <<< ( case debug of
-            Debug -> logConsole
-            NoDebug -> identity
+            FullDebug -> logConsole
+            _ -> identity
         )
     <<< dimapStringify
     <<< dimapJson
   )
+  debug
 
 
 peerWebSocket :: forall m stM s them me
@@ -180,6 +183,7 @@ peerWebSocket :: forall m stM s them me
               => ( WebSocketsApp Effect (them s) (me s)
                 -> Effect Unit
                  )
+              -> Debug
               -> ( (me s -> m Unit)
                 -> m (them s)
                 -> (Topic -> m Unit)
@@ -190,7 +194,7 @@ peerWebSocket :: forall m stM s them me
                  )
               -> SymbioteT s m Unit
               -> m Unit
-peerWebSocket webSocket peer tests = do
+peerWebSocket webSocket debug peer tests = do
   (outgoing :: Queue (read :: READ, write :: WRITE) (me s)) <- liftEffect Q.new
   (incoming :: Queue (read :: READ, write :: WRITE) (them s)) <- liftEffect Q.new
   (done :: Queue (read :: READ, write :: WRITE) Unit) <- liftEffect Q.new
@@ -198,7 +202,9 @@ peerWebSocket webSocket peer tests = do
       receiveAndDecode = liftAff (Q.draw incoming)
       onSuccess t = liftEffect $ log $ "Topic finished: " <> show t
       onFailure = liftEffect <<< defaultFailure
-      onProgress t n = liftEffect (defaultProgress t n)
+      onProgress t n = case debug of
+        NoDebug -> nullProgress t n
+        _ -> liftEffect (defaultProgress t n)
 
       onopen :: Capabilities Effect (me s) -> Effect Unit
       onopen {close,send} = do

@@ -98,12 +98,12 @@ main = launchAff_ $ runSpec' (defaultConfig {timeout = Nothing}) [consoleReporte
     it "Json" $
       let tests :: SymbioteT ShowJson Aff Unit
           tests = do
-            -- register (Topic "Generating Boolean") 100 (Proxy :: Proxy (Generating Boolean))
-            -- register (Topic "Operating Boolean") 100 (Proxy :: Proxy (Operating Boolean))
-            -- register (Topic "First Boolean") 100 (Proxy :: Proxy (First Boolean))
-            -- register (Topic "Second Boolean") 100 (Proxy :: Proxy (Second Boolean))
+            register (Topic "Generating Topic") 100 (Proxy :: Proxy { value :: ToArgonaut (Generating' Topic'), output :: ToArgonaut (Generating' Topic'), operation :: ToArgonaut GeneratingOperation })
+            register (Topic "Operating Topic") 100 (Proxy :: Proxy { value :: ToArgonaut (Operating' Topic'), output :: ToArgonaut (Operating' Topic'), operation :: ToArgonaut OperatingOperation })
+            register (Topic "First Topic") 100 (Proxy :: Proxy { value :: ToArgonaut (First' Topic'), output :: ToArgonaut (First' Topic'), operation :: ToArgonaut FirstOperation })
+            register (Topic "Second Topic") 100 (Proxy :: Proxy { value :: ToArgonaut (Second' Topic'), output :: ToArgonaut (Second' Topic'), operation :: ToArgonaut SecondOperation })
             register (Topic "Topic") 100 (Proxy :: Proxy {value :: ToArgonaut Topic', output :: ToArgonaut Topic', operation :: ToArgonaut TopicOperation})
-      in  secondPeerWebSocketJson "ws://localhost:3000/" Debug tests
+      in  secondPeerWebSocketJson "ws://localhost:3000/" NoDebug tests
   where
     simpleTests = describe "Simple Tests" do
       it "Unit over id" (simpleTest unitSuite)
@@ -464,3 +464,99 @@ instance decodeJsonTopicOperation :: DecodeJson TopicOperation where
     if s == "id" then pure TopicId else Left "TopicOperation"
 instance symbioteOperationTopicOperation :: SymbioteOperation Topic' Topic' TopicOperation where
   perform TopicId x = x
+
+newtype Generating' a = Generating' (Generating a)
+derive instance genericGenerating' :: Generic a a' => Generic (Generating' a) _
+derive newtype instance eqGenerating' :: (Generic a a', Eq a) => Eq (Generating' a)
+derive newtype instance showGenerating' :: (Generic a a', Show a) => Show (Generating' a)
+derive newtype instance arbitraryGenerating' :: Arbitrary a => Arbitrary (Generating' a)
+derive newtype instance encodeJsonGenerating' :: EncodeJson a => EncodeJson (Generating' a)
+derive newtype instance decodeJsonGenerating' :: DecodeJson a => DecodeJson (Generating' a)
+data GeneratingOperation = GeneratingId
+derive instance genericGeneratingOperation :: Generic GeneratingOperation _
+instance showGeneratingOperation :: Show GeneratingOperation where
+  show = genericShow
+instance eqGeneratingOperation :: Eq GeneratingOperation where
+  eq = genericEq
+instance arbitraryGeneratingOperation :: Arbitrary GeneratingOperation where
+  arbitrary = pure GeneratingId
+instance encodeJsonGeneratingOperation :: EncodeJson GeneratingOperation where
+  encodeJson GeneratingId = encodeJson "id"
+instance decodeJsonGeneratingOperation :: DecodeJson GeneratingOperation where
+  decodeJson json = do
+    s <- decodeJson json
+    if s == "id" then pure GeneratingId else Left "GeneratingOperation"
+instance symbioteOperationGeneratingOperation :: SymbioteOperation (Generating' a) (Generating' a) GeneratingOperation where
+  perform GeneratingId x = x
+
+newtype Operating' a = Operating' (Operating a)
+derive instance genericOperating' :: Generic a a' => Generic (Operating' a) _
+derive newtype instance eqOperating' :: (Generic a a', Eq a) => Eq (Operating' a)
+derive newtype instance showOperating' :: (Generic a a', Show a) => Show (Operating' a)
+derive newtype instance arbitraryOperating' :: Arbitrary a => Arbitrary (Operating' a)
+derive newtype instance encodeJsonOperating' :: EncodeJson a => EncodeJson (Operating' a)
+derive newtype instance decodeJsonOperating' :: DecodeJson a => DecodeJson (Operating' a)
+data OperatingOperation = OperatingId
+derive instance genericOperatingOperation :: Generic OperatingOperation _
+instance showOperatingOperation :: Show OperatingOperation where
+  show = genericShow
+instance eqOperatingOperation :: Eq OperatingOperation where
+  eq = genericEq
+instance arbitraryOperatingOperation :: Arbitrary OperatingOperation where
+  arbitrary = pure OperatingId
+instance encodeJsonOperatingOperation :: EncodeJson OperatingOperation where
+  encodeJson OperatingId = encodeJson "id"
+instance decodeJsonOperatingOperation :: DecodeJson OperatingOperation where
+  decodeJson json = do
+    s <- decodeJson json
+    if s == "id" then pure OperatingId else Left "OperatingOperation"
+instance symbioteOperationOperatingOperation :: SymbioteOperation (Operating' a) (Operating' a) OperatingOperation where
+  perform OperatingId x = x
+
+newtype First' a = First' (First a)
+derive instance genericFirst' :: Generic a a' => Generic (First' a) _
+derive newtype instance eqFirst' :: (Generic a a', Eq a) => Eq (First' a)
+derive newtype instance showFirst' :: (Generic a a', Show a) => Show (First' a)
+derive newtype instance arbitraryFirst' :: Arbitrary a => Arbitrary (First' a)
+derive newtype instance encodeJsonFirst' :: EncodeJson a => EncodeJson (First' a)
+derive newtype instance decodeJsonFirst' :: DecodeJson a => DecodeJson (First' a)
+data FirstOperation = FirstId
+derive instance genericFirstOperation :: Generic FirstOperation _
+instance showFirstOperation :: Show FirstOperation where
+  show = genericShow
+instance eqFirstOperation :: Eq FirstOperation where
+  eq = genericEq
+instance arbitraryFirstOperation :: Arbitrary FirstOperation where
+  arbitrary = pure FirstId
+instance encodeJsonFirstOperation :: EncodeJson FirstOperation where
+  encodeJson FirstId = encodeJson "id"
+instance decodeJsonFirstOperation :: DecodeJson FirstOperation where
+  decodeJson json = do
+    s <- decodeJson json
+    if s == "id" then pure FirstId else Left "FirstOperation"
+instance symbioteOperationFirstOperation :: SymbioteOperation (First' a) (First' a) FirstOperation where
+  perform FirstId x = x
+
+newtype Second' a = Second' (Second a)
+derive instance genericSecond' :: Generic a a' => Generic (Second' a) _
+derive newtype instance eqSecond' :: (Generic a a', Eq a) => Eq (Second' a)
+derive newtype instance showSecond' :: (Generic a a', Show a) => Show (Second' a)
+derive newtype instance arbitrarySecond' :: Arbitrary a => Arbitrary (Second' a)
+derive newtype instance encodeJsonSecond' :: EncodeJson a => EncodeJson (Second' a)
+derive newtype instance decodeJsonSecond' :: DecodeJson a => DecodeJson (Second' a)
+data SecondOperation = SecondId
+derive instance genericSecondOperation :: Generic SecondOperation _
+instance showSecondOperation :: Show SecondOperation where
+  show = genericShow
+instance eqSecondOperation :: Eq SecondOperation where
+  eq = genericEq
+instance arbitrarySecondOperation :: Arbitrary SecondOperation where
+  arbitrary = pure SecondId
+instance encodeJsonSecondOperation :: EncodeJson SecondOperation where
+  encodeJson SecondId = encodeJson "id"
+instance decodeJsonSecondOperation :: DecodeJson SecondOperation where
+  decodeJson json = do
+    s <- decodeJson json
+    if s == "id" then pure SecondId else Left "SecondOperation"
+instance symbioteOperationSecondOperation :: SymbioteOperation (Second' a) (Second' a) SecondOperation where
+  perform SecondId x = x
