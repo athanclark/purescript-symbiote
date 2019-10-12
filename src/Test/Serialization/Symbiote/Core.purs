@@ -5,9 +5,12 @@ import Data.Maybe (Maybe)
 import Data.Map (Map)
 import Data.Map (empty) as Map
 import Data.Int (toNumber) as Int
+import Data.Enum (toEnumWithDefaults)
 import Data.Generic.Rep (class Generic)
 import Data.Argonaut (class EncodeJson, class DecodeJson)
 import Data.ArrayBuffer.Class (class EncodeArrayBuffer, class DecodeArrayBuffer, class DynamicByteLength)
+import Data.String.CodeUnits (fromCharArray)
+import Control.Alternative ((<|>))
 import Control.Monad.Reader (ReaderT, runReaderT)
 import Control.Monad.State (StateT, execStateT)
 import Effect.Ref (Ref)
@@ -16,7 +19,7 @@ import Effect.Class (class MonadEffect, liftEffect)
 import Type.Proxy (Proxy)
 import Test.QuickCheck (class Arbitrary)
 import Test.QuickCheck.Gen (Gen)
-import Test.QuickCheck.Gen (evalGen) as QC
+import Test.QuickCheck.Gen (evalGen, arrayOf, chooseInt) as QC
 import Random.LCG (randomSeed)
 import Partial.Unsafe (unsafePartial)
 import Unsafe.Coerce (unsafeCoerce)
@@ -44,7 +47,10 @@ derive instance genericTopic :: Generic Topic _
 derive newtype instance eqTopic :: Eq Topic
 derive newtype instance ordTopic :: Ord Topic
 derive newtype instance showTopic :: Show Topic
-derive newtype instance arbitraryTopic :: Arbitrary Topic
+instance arbitraryTopic :: Arbitrary Topic where
+  arbitrary = Topic <<< fromCharArray <$> QC.arrayOf arbChar
+    where
+      arbChar = toEnumWithDefaults bottom top <$> (QC.chooseInt 0 (0xD800 - 1) <|> QC.chooseInt (0xDFFF + 1) 65536)
 derive newtype instance encodeJsonTopic :: EncodeJson Topic
 derive newtype instance decodeJsonTopic :: DecodeJson Topic
 derive newtype instance encodeArrayBufferTopic :: EncodeArrayBuffer Topic

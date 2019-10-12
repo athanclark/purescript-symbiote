@@ -41,7 +41,7 @@ import Effect.Aff (Aff, forkAff, joinFiber)
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Effect.Ref (Ref)
 import Effect.Ref (new, read, write) as Ref
-import Effect.Console (log, error, warn)
+import Effect.Console (log, warn)
 import Effect.Exception (throw)
 import Foreign.Object (Object)
 import Foreign.Object (toUnfoldable, fromFoldable) as Object

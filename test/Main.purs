@@ -41,7 +41,7 @@ import Test.Spec (describe, it)
 import Test.Spec.Runner (runSpec', defaultConfig)
 import Test.Spec.Reporter.Console (consoleReporter)
 import Test.QuickCheck (class Arbitrary, arbitrary, quickCheck)
-import Test.QuickCheck.Gen (Gen, oneOf, elements, sized, resize, arrayOf)
+import Test.QuickCheck.Gen (Gen, oneOf, sized, resize, arrayOf)
 import Type.Proxy (Proxy (..))
 
 
