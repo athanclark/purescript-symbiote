@@ -33,7 +33,6 @@
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0",
-    "purescript-spec": "^4.0.1",
-    "purescript-quickcheck": "^6.1.0"
+    "purescript-spec": "^4.0.1"
   }
 }
