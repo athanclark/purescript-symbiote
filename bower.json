@@ -23,7 +23,8 @@
     "purescript-abides": "^0.0.0",
     "purescript-debug": "^4.0.0",
     "purescript-websocket-moderate": "^7.0.0",
-    "purescript-websocket-moderate-extra": "^0.0.1"
+    "purescript-websocket-moderate-extra": "^0.0.1",
+    "purescript-zeromq": "^0.0.7"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0",

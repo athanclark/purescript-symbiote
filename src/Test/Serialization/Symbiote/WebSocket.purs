@@ -3,6 +3,7 @@ module Test.Serialization.Symbiote.WebSocket where
 import Test.Serialization.Symbiote
   (firstPeer, secondPeer, SymbioteT, defaultFailure, defaultProgress, nullProgress, Topic, Failure)
 import Test.Serialization.Symbiote.Argonaut (ShowJson)
+import Test.Serialization.Symbiote.Debug (Debug (..))
 
 import Prelude
 import Effect (Effect)
@@ -29,9 +30,6 @@ import WebSocket (dimap', WebSocketsApp (..), Capabilities, dimapStringify, dima
 import WebSocket.Extra (logConsole)
 import Debug.Trace (traceM)
 
-
-
-data Debug = FullDebug | Percent | NoDebug
 
 
 secondPeerWebSocketArrayBuffer :: forall m stM

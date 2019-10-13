@@ -18,7 +18,9 @@ import Test.Serialization.Symbiote
   , SymbioteT, Generating, Operating, First, Second)
 import Test.Serialization.Symbiote.Argonaut (ToArgonaut, ShowJson)
 import Test.Serialization.Symbiote.ArrayBuffer (ToArrayBuffer)
-import Test.Serialization.Symbiote.WebSocket (secondPeerWebSocketJson, secondPeerWebSocketArrayBuffer, Debug (..))
+import Test.Serialization.Symbiote.Debug (Debug (..))
+import Test.Serialization.Symbiote.WebSocket (secondPeerWebSocketJson, secondPeerWebSocketArrayBuffer)
+import Test.Serialization.Symbiote.ZeroMQ (secondPeerZeroMQ)
 import Test.QuickCheck (class Arbitrary)
 import Test.Spec (describe, it, SpecT)
 import Effect.Aff (Aff, delay)
@@ -27,7 +29,7 @@ import Type.Proxy (Proxy (..))
 
 
 protocolTests :: forall m'. Monad m' => SpecT Aff Unit m' Unit
-protocolTests =
+protocolTests = do
   describe "WebSocket Client" do
     it "Json" $
       let tests :: SymbioteT ShowJson Aff Unit
@@ -41,14 +43,26 @@ protocolTests =
     it "ArrayBuffer" $
       let tests :: SymbioteT (AV AB.Uint8 UInt) Aff Unit
           tests = do
-            register (Topic "Generating ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer GeneratingOperation })
-            register (Topic "Operating ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer OperatingOperation })
-            register (Topic "First ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer FirstOperation })
-            register (Topic "Second ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer SecondOperation })
-            register (Topic "Topic") 10 (Proxy :: Proxy {value :: ToArrayBuffer Topic', output :: ToArrayBuffer Topic', operation :: ToArrayBuffer TopicOperation})
+            register (Topic "Generating ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer GeneratingOperation })
+            register (Topic "Operating ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer OperatingOperation })
+            register (Topic "First ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer FirstOperation })
+            register (Topic "Second ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer SecondOperation })
+            register (Topic "Topic") 50 (Proxy :: Proxy {value :: ToArrayBuffer Topic', output :: ToArrayBuffer Topic', operation :: ToArrayBuffer TopicOperation})
       in  do
         delay (Milliseconds 2000.0)
         secondPeerWebSocketArrayBuffer "ws://localhost:3001/" NoDebug tests
+  describe "ZeroMQ Client" do
+    it "ArrayBuffer" $
+      let tests :: SymbioteT (AV AB.Uint8 UInt) Aff Unit
+          tests = do
+            register (Topic "Generating ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer GeneratingOperation })
+            register (Topic "Operating ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer OperatingOperation })
+            register (Topic "First ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer FirstOperation })
+            register (Topic "Second ByteString") 50 (Proxy :: Proxy { value :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer SecondOperation })
+            register (Topic "Topic") 50 (Proxy :: Proxy {value :: ToArrayBuffer Topic', output :: ToArrayBuffer Topic', operation :: ToArrayBuffer TopicOperation})
+      in  do
+        delay (Milliseconds 2000.0)
+        secondPeerZeroMQ "tcp://127.0.0.1:3002" NoDebug tests
 
 
 
