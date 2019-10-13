@@ -13,8 +13,11 @@ import Effect.Unsafe (unsafePerformEffect)
 import Effect.Exception (throwException, throw)
 import Data.Maybe (Maybe (..))
 import Data.Functor.Singleton (class SingletonFunctor, liftBaseWith_)
+import Data.UInt (UInt)
 import Data.Argonaut (class EncodeJson, class DecodeJson)
-import Data.ArrayBuffer.Types (ArrayBuffer)
+import Data.ArrayBuffer.Typed (whole, buffer)
+import Data.ArrayBuffer.Typed.Unsafe (AV (..))
+import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
 import Data.ArrayBuffer.Class
   ( class EncodeArrayBuffer, class DecodeArrayBuffer
   , encodeArrayBuffer, decodeArrayBuffer, class DynamicByteLength)
@@ -100,6 +103,8 @@ peerWebSocketArrayBuffer :: forall m stM s them me
                          => MonadBaseControl Aff m stM
                          => SingletonFunctor stM
                          => Show s
+                         => Show (me s) -- extra
+                         => Show (them s) -- extra
                          => EncodeArrayBuffer (me s)
                          => DecodeArrayBuffer (them s)
                          => DynamicByteLength (me s)
@@ -117,14 +122,29 @@ peerWebSocketArrayBuffer :: forall m stM s them me
                          -> m Unit
 peerWebSocketArrayBuffer host debug = peerWebSocket go debug
   where
+    toAV :: WebSocketsApp Effect ArrayBuffer ArrayBuffer
+         -> WebSocketsApp Effect (AV Uint8 UInt) (AV Uint8 UInt)
+    toAV = dimap' receive send
+      where
+        receive :: AV Uint8 UInt -> Effect ArrayBuffer
+        receive (AV t) = pure (buffer t)
+        send :: ArrayBuffer -> AV Uint8 UInt
+        send b = unsafePerformEffect (AV <$> whole b)
+    fromAV :: WebSocketsApp Effect (AV Uint8 UInt) (AV Uint8 UInt)
+           -> WebSocketsApp Effect ArrayBuffer ArrayBuffer
+    fromAV = dimap' receive send
+      where
+        receive :: ArrayBuffer -> Effect (AV Uint8 UInt)
+        receive b = AV <$> whole b
+        send :: AV Uint8 UInt -> ArrayBuffer
+        send (AV t) = buffer t
     go app =
       newWebSocketBinary host []
-        -- FIXME use AV?
-        -- $ ( case debug of
-        --       Debug -> logConsole
-        --       NoDebug -> identity
-        --   )
-        $ dimap' receive send app
+        $ ( case debug of
+              FullDebug -> fromAV <<< logConsole <<< toAV
+              _ -> identity
+          )
+        $ dimap' receive send $ logConsole app
       where
         receive :: ArrayBuffer -> Effect (them s)
         receive buf = do
@@ -137,9 +157,7 @@ peerWebSocketArrayBuffer host debug = peerWebSocket go debug
             Just x -> pure x
 
         send :: me s -> ArrayBuffer
-        send x = unsafePerformEffect do
-          buf <- encodeArrayBuffer x
-          pure buf
+        send x = unsafePerformEffect (encodeArrayBuffer x)
 
 
 peerWebSocketJson :: forall m stM s them me
