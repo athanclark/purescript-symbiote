@@ -41,14 +41,14 @@ protocolTests =
     it "ArrayBuffer" $
       let tests :: SymbioteT (AV AB.Uint8 UInt) Aff Unit
           tests = do
-            -- register (Topic "Generating Topic") 100 (Proxy :: Proxy { value :: ToArrayBuffer (Generating' Topic'), output :: ToArrayBuffer (Generating' Topic'), operation :: ToArrayBuffer GeneratingOperation })
-            -- register (Topic "Operating Topic") 100 (Proxy :: Proxy { value :: ToArrayBuffer (Operating' Topic'), output :: ToArrayBuffer (Operating' Topic'), operation :: ToArrayBuffer OperatingOperation })
-            -- register (Topic "First Topic") 100 (Proxy :: Proxy { value :: ToArrayBuffer (First' Topic'), output :: ToArrayBuffer (First' Topic'), operation :: ToArrayBuffer FirstOperation })
-            -- register (Topic "Second Topic") 100 (Proxy :: Proxy { value :: ToArrayBuffer (Second' Topic'), output :: ToArrayBuffer (Second' Topic'), operation :: ToArrayBuffer SecondOperation })
+            register (Topic "Generating ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Generating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer GeneratingOperation })
+            register (Topic "Operating ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Operating' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer OperatingOperation })
+            register (Topic "First ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (First' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer FirstOperation })
+            register (Topic "Second ByteString") 10 (Proxy :: Proxy { value :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), output :: ToArrayBuffer (Second' (AV AB.Uint8 UInt)), operation :: ToArrayBuffer SecondOperation })
             register (Topic "Topic") 10 (Proxy :: Proxy {value :: ToArrayBuffer Topic', output :: ToArrayBuffer Topic', operation :: ToArrayBuffer TopicOperation})
       in  do
         delay (Milliseconds 2000.0)
-        secondPeerWebSocketArrayBuffer "ws://localhost:3001/" FullDebug tests
+        secondPeerWebSocketArrayBuffer "ws://localhost:3001/" NoDebug tests
 
 
 

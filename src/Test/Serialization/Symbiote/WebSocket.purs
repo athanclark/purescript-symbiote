@@ -2,6 +2,7 @@ module Test.Serialization.Symbiote.WebSocket where
 
 import Test.Serialization.Symbiote
   (firstPeer, secondPeer, SymbioteT, defaultFailure, defaultProgress, nullProgress, Topic, Failure)
+import Test.Serialization.Symbiote.Argonaut (ShowJson)
 
 import Prelude
 import Effect (Effect)
@@ -21,7 +22,6 @@ import Data.ArrayBuffer.Types (ArrayBuffer, Uint8)
 import Data.ArrayBuffer.Class
   ( class EncodeArrayBuffer, class DecodeArrayBuffer
   , encodeArrayBuffer, decodeArrayBuffer, class DynamicByteLength)
-import Data.Generic.Rep (class Generic)
 import Control.Monad.Trans.Control (class MonadBaseControl)
 import Queue.One (Queue, READ, WRITE)
 import Queue.One (new,put,draw,on,del) as Q
@@ -34,91 +34,70 @@ import Debug.Trace (traceM)
 data Debug = FullDebug | Percent | NoDebug
 
 
-secondPeerWebSocketArrayBuffer :: forall m stM s s'
+secondPeerWebSocketArrayBuffer :: forall m stM
                         . MonadEffect m
                        => MonadAff m
                        => MonadBaseControl Aff m stM
                        => SingletonFunctor stM
-                       => Show s
-                       => Generic s s'
-                       => EncodeArrayBuffer s
-                       => DecodeArrayBuffer s
-                       => DynamicByteLength s
                        => String
                        -> Debug
-                       -> SymbioteT s m Unit
+                       -> SymbioteT (AV Uint8 UInt) m Unit
                        -> m Unit
 secondPeerWebSocketArrayBuffer host debug = peerWebSocketArrayBuffer host debug secondPeer
 
-firstPeerWebSocketArrayBuffer :: forall m stM s s'
+firstPeerWebSocketArrayBuffer :: forall m stM
                         . MonadEffect m
                        => MonadAff m
                        => MonadBaseControl Aff m stM
                        => SingletonFunctor stM
-                       => Show s
-                       => Generic s s'
-                       => EncodeArrayBuffer s
-                       => DecodeArrayBuffer s
-                       => DynamicByteLength s
                        => String
                        -> Debug
-                       -> SymbioteT s m Unit
+                       -> SymbioteT (AV Uint8 UInt) m Unit
                        -> m Unit
 firstPeerWebSocketArrayBuffer host debug = peerWebSocketArrayBuffer host debug firstPeer
 
-secondPeerWebSocketJson :: forall m stM s s'
+secondPeerWebSocketJson :: forall m stM
                         . MonadEffect m
                        => MonadAff m
                        => MonadBaseControl Aff m stM
                        => SingletonFunctor stM
-                       => Show s
-                       => Generic s s'
-                       => EncodeJson s
-                       => DecodeJson s
                        => String
                        -> Debug
-                       -> SymbioteT s m Unit
+                       -> SymbioteT ShowJson m Unit
                        -> m Unit
 secondPeerWebSocketJson host debug = peerWebSocketJson host debug secondPeer
 
-firstPeerWebSocketJson :: forall m stM s s'
+firstPeerWebSocketJson :: forall m stM
                         . MonadEffect m
                        => MonadAff m
                        => MonadBaseControl Aff m stM
                        => SingletonFunctor stM
-                       => Show s
-                       => Generic s s'
-                       => EncodeJson s
-                       => DecodeJson s
                        => String
                        -> Debug
-                       -> SymbioteT s m Unit
+                       -> SymbioteT ShowJson m Unit
                        -> m Unit
 firstPeerWebSocketJson host debug = peerWebSocketJson host debug firstPeer
 
 
-peerWebSocketArrayBuffer :: forall m stM s them me
+peerWebSocketArrayBuffer :: forall m stM them me
                           . MonadEffect m
                          => MonadAff m
                          => MonadBaseControl Aff m stM
                          => SingletonFunctor stM
-                         => Show s
-                         => Show (me s) -- extra
-                         => Show (them s) -- extra
-                         => EncodeArrayBuffer (me s)
-                         => DecodeArrayBuffer (them s)
-                         => DynamicByteLength (me s)
+                         => EncodeArrayBuffer (me (AV Uint8 UInt))
+                         => DecodeArrayBuffer (them (AV Uint8 UInt))
+                         => DynamicByteLength (me (AV Uint8 UInt))
                          => String
                          -> Debug
-                         -> ( (me s -> m Unit)
-                           -> m (them s)
+                         -> ( (me (AV Uint8 UInt) -> m Unit)
+                           -> m (them (AV Uint8 UInt))
                            -> (Topic -> m Unit)
-                           -> (Failure them s -> m Unit)
+                           -> (Failure them (AV Uint8 UInt) -> m Unit)
                            -> (Topic -> Number -> m Unit)
-                           -> SymbioteT s m Unit
+                           -> SymbioteT (AV Uint8 UInt) m Unit
                            -> m Unit
                            )
-                         -> SymbioteT s m Unit
+                         -> SymbioteT (AV Uint8 UInt) m Unit
                          -> m Unit
 peerWebSocketArrayBuffer host debug = peerWebSocket go debug
   where
@@ -144,9 +123,9 @@ peerWebSocketArrayBuffer host debug = peerWebSocket go debug
               FullDebug -> fromAV <<< logConsole <<< toAV
               _ -> identity
           )
-        $ dimap' receive send $ logConsole app
+        $ dimap' receive send app
       where
-        receive :: ArrayBuffer -> Effect (them s)
+        receive :: ArrayBuffer -> Effect (them (AV Uint8 UInt))
         receive buf = do
           mX <- decodeArrayBuffer buf
           case mX of
@@ -156,29 +135,28 @@ peerWebSocketArrayBuffer host debug = peerWebSocket go debug
               throw "Failed."
             Just x -> pure x
 
-        send :: me s -> ArrayBuffer
+        send :: me (AV Uint8 UInt) -> ArrayBuffer
         send x = unsafePerformEffect (encodeArrayBuffer x)
 
 
-peerWebSocketJson :: forall m stM s them me
+peerWebSocketJson :: forall m stM them me
                    . MonadEffect m
                   => MonadAff m
                   => MonadBaseControl Aff m stM
                   => SingletonFunctor stM
-                  => Show s
-                  => EncodeJson (me s)
-                  => DecodeJson (them s)
+                  => EncodeJson (me ShowJson)
+                  => DecodeJson (them ShowJson)
                   => String
                   -> Debug -- ^ Print incoming & outgoing?
-                  -> ( (me s -> m Unit)
-                    -> m (them s)
+                  -> ( (me ShowJson -> m Unit)
+                    -> m (them ShowJson)
                     -> (Topic -> m Unit)
-                    -> (Failure them s -> m Unit)
+                    -> (Failure them ShowJson -> m Unit)
                     -> (Topic -> Number -> m Unit)
-                    -> SymbioteT s m Unit
+                    -> SymbioteT ShowJson m Unit
                     -> m Unit
                     )
-                  -> SymbioteT s m Unit
+                  -> SymbioteT ShowJson m Unit
                   -> m Unit
 peerWebSocketJson host debug = peerWebSocket
   ( newWebSocketString host []

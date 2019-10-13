@@ -19,11 +19,11 @@
     "purescript-monad-control": "^5.0.0",
     "purescript-queue": "^8.0.1",
     "purescript-argonaut": "^6.0.0",
-    "purescript-arraybuffer-class": "^0.2.0",
+    "purescript-arraybuffer-class": "^0.2.1",
     "purescript-abides": "^0.0.0",
     "purescript-debug": "^4.0.0",
-    "purescript-websocket-moderate": "^5.0.0",
-    "purescript-websocket-moderate-extra": "^0.0.0"
+    "purescript-websocket-moderate": "^7.0.0",
+    "purescript-websocket-moderate-extra": "^0.0.1"
   },
   "devDependencies": {
     "purescript-psci-support": "^4.0.0",

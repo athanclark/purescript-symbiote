@@ -31,7 +31,6 @@ import Test.QuickCheck.Gen (Gen, oneOf, sized, resize, arrayOf)
 import Foreign.Object (fromFoldable) as Object
 import Effect.Unsafe (unsafePerformEffect)
 import Effect.Console (error)
-import Type.Proxy (Proxy (..))
 
 
 data Unit' = Unit'
