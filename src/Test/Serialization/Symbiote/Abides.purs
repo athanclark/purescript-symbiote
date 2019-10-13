@@ -1,7 +1,7 @@
 -- | This module provides newtypes for ensuring consistent functionality with respect to various class laws:
 -- | Monoids, SemiRing, etc are all included via the
 -- | <https://hackage.haskell.org/package/abides abides> library. Note: This only verifies the /consistency/
--- | of behavior between platforms - if both platforms are broken (return @False@) /consistently/, the tests
+-- | of behavior between platforms - if both platforms are broken (return `False`) /consistently/, the tests
 -- | will pass. Prevent this by implementing a local test suite with
 -- | <https://hackage.haskell.org/package/QuickCheck QuickCheck>, and use the abides property tests
 -- | directly.

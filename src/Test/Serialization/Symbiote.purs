@@ -54,7 +54,7 @@ import Partial.Unsafe (unsafePartial)
 import Debug.Trace (traceM)
 
 
--- | The most trivial serialization medium for any @a@.
+-- | The most trivial serialization medium for any `a`.
 data SimpleSerialization a o op
   = SimpleValue a
   | SimpleOutput o
@@ -621,7 +621,7 @@ nullProgress :: forall m. Applicative m => Topic -> Number -> m Unit
 nullProgress _ _ = pure unit
 
 
--- | Run the test suite as the first peer
+-- | Run the test suite as the first peer - see 'Test.Serialization.Symbiote.WebSocket' for end-user implementations.
 firstPeer :: forall m s
            . MonadEffect m
           => MonadAff m
@@ -670,7 +670,7 @@ firstPeer encodeAndSend receiveAndDecode onSuccess onFailure onProgress x = do
     _ -> onFailure $ OutOfSyncSecond shouldBeStart
 
 
--- | Run the test suite as the second peer
+-- | Run the test suite as the second peer - see 'Test.Serialization.Symbiote.WebSocket' for end-user implementations.
 secondPeer :: forall s m
             . MonadEffect m
            => MonadAff m
